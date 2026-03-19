@@ -1,0 +1,81 @@
+keywords:
+  high_risk:
+    - kill
+    - eliminate
+    - destroy
+    - attack
+    - bomb
+    - explode
+    - violence
+    - massacre
+    - slaughter
+    - purge
+    - exterminate
+    - terror
+    - extremist
+    - radical
+    - holy war
+    - jihad
+    - martyr
+    - sacrifice
+
+  medium_risk:
+    - enemy
+    - infidel
+    - disbeliever
+    - traitor
+    - collaborator
+    - corrupt
+    - evil
+    - wicked
+    - impure
+    - righteous
+    - purification
+    - us versus them
+    - our people
+    - blood
+
+  low_risk:
+    - oppression
+    - injustice
+    - struggle
+    - fight
+    - resist
+    - defend
+    - protect
+    - homeland
+    - nation
+    - faith
+    - belief
+    - ideology
+
+patterns:
+  call_to_violence:
+    - "by any means necessary"
+    - "by all means"
+    - "must rise"
+    - "rise up"
+    - "take up arms"
+    - "fight back"
+    - "we will not rest until"
+    
+  recruitment:
+    - "join us"
+    - "join the cause"
+    - "become a soldier"
+    - "recruit"
+    - "brothers and sisters"
+    - "come to"
+
+  dehumanization:
+    - "less than human"
+    - "vermin"
+    - "parasites"
+    - "cancer"
+    - "disease"
+    - "filth"
+
+severity_weights:
+  high_risk: 3
+  medium_risk: 2
+  low_risk: 1

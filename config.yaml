@@ -1,0 +1,35 @@
+classification:
+  labels:
+    0: Non-Radical
+    1: Mildly Radical
+    2: Moderately Radical
+    3: Highly Radical
+  confidence_threshold: 0.5
+
+rule_engine:
+  data_path: data/rules/keywords.yaml
+  weights:
+    high_risk: 0.8
+    medium_risk: 0.5
+    low_risk: 0.2
+  amplification_factor: 1.5
+
+model:
+  name: distilbert-base-uncased
+  num_labels: 4
+  checkpoint_path: models/checkpoints
+  max_length: 256
+
+pipeline:
+  enable_rule_engine: true
+  enable_ml: true
+  fusion_method: weighted_average
+
+logging:
+  level: INFO
+  file: logs/sentinel.log
+  console: true
+
+api:
+  host: 0.0.0.0
+  port: 8000
