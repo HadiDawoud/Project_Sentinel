@@ -34,20 +34,26 @@ def train_model(
     
     train_df = pd.read_csv(train_file)
     val_df = pd.read_csv(val_file)
-    
+
+    if "label" not in train_df.columns:
+        raise ValueError("Training CSV must include a 'label' column (int class index).")
     train_dataset = Dataset.from_pandas(train_df)
     val_dataset = Dataset.from_pandas(val_df)
-    
+    train_dataset = train_dataset.rename_column("label", "labels")
+    val_dataset = val_dataset.rename_column("label", "labels")
+
     def tokenize_function(examples):
         return tokenizer(
-            examples['text'],
+            examples["text"],
             truncation=True,
-            padding='max_length',
-            max_length=256
+            padding="max_length",
+            max_length=256,
         )
-    
-    train_dataset = train_dataset.map(tokenize_function, batched=True)
-    val_dataset = val_dataset.map(tokenize_function, batched=True)
+
+    train_dataset = train_dataset.map(
+        tokenize_function, batched=True, remove_columns=["text"]
+    )
+    val_dataset = val_dataset.map(tokenize_function, batched=True, remove_columns=["text"])
     
     training_args = TrainingArguments(
         output_dir=output_dir,
