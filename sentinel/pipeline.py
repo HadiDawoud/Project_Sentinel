@@ -6,12 +6,13 @@ from datetime import datetime
 
 from .preprocessor import TextPreprocessor
 from .rule_engine import RuleEngine
-from .classifier import RadicalClassifier
 from .fusion import ScoreFusion
 
 
 class SentinelPipeline:
     def __init__(self, config_path: str = "config.yaml"):
+        from .classifier import RadicalClassifier
+
         self.config = self._load_config(config_path)
         self.preprocessor = TextPreprocessor()
         self.rule_engine = RuleEngine(

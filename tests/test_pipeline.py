@@ -59,6 +59,12 @@ class TestRuleEngine:
         result = self.engine.check_patterns(text)
         assert 'must rise' in [p['pattern'] for p in result['matched_patterns']]
 
+    def test_dehumanization_pattern_subhuman(self):
+        text = "They are subhuman and unworthy of mercy"
+        result = self.engine.check_patterns(text)
+        patterns = [p['pattern'] for p in result['matched_patterns']]
+        assert 'subhuman' in patterns
+
     def test_full_analysis(self):
         text = "The enemy must be destroyed by any means necessary"
         result = self.engine.analyze(text)
