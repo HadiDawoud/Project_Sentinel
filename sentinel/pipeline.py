@@ -1,3 +1,4 @@
+import logging
 import yaml
 import json
 from pathlib import Path
@@ -50,7 +51,17 @@ class SentinelPipeline:
         log_config = self.config.get('logging', {})
         self.log_level = log_config.get('level', 'INFO')
         self.log_file = log_config.get('file', 'logs/sentinel.log')
+        self.log_console = log_config.get('console', True)
         Path('logs').mkdir(exist_ok=True)
+
+        self._audit_logger = logging.getLogger('sentinel.pipeline.classify')
+        self._audit_logger.propagate = False
+        level = getattr(logging, str(self.log_level).upper(), logging.INFO)
+        self._audit_logger.setLevel(level)
+        if self.log_console and not self._audit_logger.handlers:
+            h = logging.StreamHandler()
+            h.setFormatter(logging.Formatter('%(message)s'))
+            self._audit_logger.addHandler(h)
 
     def classify(self, text: str, return_raw: bool = False) -> Dict:
         preprocessed = self.preprocessor.preprocess(text)
@@ -113,6 +124,9 @@ class SentinelPipeline:
         return results
 
     def _log_result(self, result: Dict) -> None:
+        if self.log_console and self._audit_logger.handlers:
+            line = json.dumps({'event': 'classification', 'result': result}, default=str)
+            self._audit_logger.info(line)
         if self.log_file:
             try:
                 with open(self.log_file, 'a') as f:
