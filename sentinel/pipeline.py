@@ -1,6 +1,7 @@
 import logging
 import yaml
 import json
+from collections import OrderedDict
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 from datetime import datetime
@@ -29,6 +30,9 @@ class SentinelPipeline:
             ml_weight=0.7,
             amplification_factor=self.config['rule_engine'].get('amplification_factor', 1.5)
         )
+        pipe_cfg = self.config.get('pipeline', {})
+        self._classify_cache_max = max(0, int(pipe_cfg.get('classify_cache_size', 0)))
+        self._classify_cache: OrderedDict[str, Dict] = OrderedDict()
         self._setup_logging()
 
     def _load_config(self, config_path: str) -> Dict:
@@ -44,7 +48,8 @@ class SentinelPipeline:
             'model': {
                 'name': 'distilbert-base-uncased',
                 'num_labels': 4
-            }
+            },
+            'pipeline': {'classify_cache_size': 0},
         }
 
     def _setup_logging(self) -> None:
@@ -64,12 +69,27 @@ class SentinelPipeline:
             self._audit_logger.addHandler(h)
 
     def classify(self, text: str, return_raw: bool = False) -> Dict:
+        if (
+            self._classify_cache_max > 0
+            and not return_raw
+            and text in self._classify_cache
+        ):
+            self._classify_cache.move_to_end(text)
+            cached = self._classify_cache[text]
+            output = {
+                **cached,
+                'timestamp': datetime.now().isoformat(),
+                'input': text,
+            }
+            self._log_result(output)
+            return output
+
         preprocessed = self.preprocessor.preprocess(text)
         rule_result = self.rule_engine.analyze(preprocessed['cleaned'])
         ml_result = self.classifier.predict(text)
-        
+
         fused_result = self.fusion.fuse(rule_result, ml_result)
-        
+
         output = {
             'timestamp': datetime.now().isoformat(),
             'input': text,
@@ -78,17 +98,25 @@ class SentinelPipeline:
             'risk_score': fused_result['risk_score'],
             'flagged_terms': fused_result['flagged_terms'],
             'reasoning': fused_result['reasoning'],
-            'rule_amplification': fused_result['rule_amplification']
+            'rule_amplification': fused_result['rule_amplification'],
         }
-        
+
         if return_raw:
             output['raw'] = {
                 'preprocessed': preprocessed,
                 'rule_result': rule_result,
-                'ml_result': ml_result
+                'ml_result': ml_result,
             }
-        
+
         self._log_result(output)
+
+        if self._classify_cache_max > 0 and not return_raw:
+            stored = {k: v for k, v in output.items() if k != 'timestamp'}
+            self._classify_cache[text] = stored
+            self._classify_cache.move_to_end(text)
+            while len(self._classify_cache) > self._classify_cache_max:
+                self._classify_cache.popitem(last=False)
+
         return output
 
     def classify_batch(self, texts: List[str]) -> List[Dict]:
