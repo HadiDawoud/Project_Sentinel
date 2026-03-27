@@ -1,8 +1,13 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 from typing import List, Optional
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 from sentinel.pipeline import SentinelPipeline
+
+limiter = Limiter(key_func=get_remote_address)
 
 app = FastAPI(
     title="Project Sentinel API",
@@ -16,6 +21,9 @@ app = FastAPI(
         {"name": "meta", "description": "Service health and metadata"},
     ],
 )
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 pipeline = SentinelPipeline()
 
 
@@ -48,7 +56,8 @@ async def root():
     summary="Classify one text",
     response_description="Fused rule + ML label, confidence, and risk score",
 )
-async def classify(input_data: TextInput):
+@limiter.limit("60/minute")
+async def classify(request: Request, input_data: TextInput):
     try:
         result = pipeline.classify(input_data.text, return_raw=input_data.return_raw)
         return result
@@ -57,7 +66,8 @@ async def classify(input_data: TextInput):
 
 
 @app.post("/classify/batch", tags=["classification"], summary="Classify multiple texts")
-async def classify_batch(input_data: BatchInput):
+@limiter.limit("30/minute")
+async def classify_batch(request: Request, input_data: BatchInput):
     try:
         results = pipeline.classify_batch(input_data.texts)
         return {"results": results}
@@ -66,7 +76,10 @@ async def classify_batch(input_data: BatchInput):
 
 
 @app.post("/classify/file", tags=["classification"], summary="Classify from a local file path")
-async def classify_file(file_url: str, output_format: str = "json"):
+@limiter.limit("30/minute")
+async def classify_file(
+    request: Request, file_url: str, output_format: str = "json"
+):
     try:
         results = pipeline.classify_from_file(file_url)
         return {"results": results, "count": len(results)}
