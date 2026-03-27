@@ -36,6 +36,17 @@ class TestTextPreprocessor:
         assert 'tokens' in result
         assert 'token_count' in result
 
+    def test_preprocess_empty_string(self):
+        result = self.preprocessor.preprocess("")
+        assert result["cleaned"] == ""
+        assert result["tokens"] == []
+        assert result["token_count"] == 0
+
+    def test_preprocess_whitespace_only(self):
+        result = self.preprocessor.preprocess("   \n\t  ")
+        assert result["cleaned"] == ""
+        assert result["token_count"] == 0
+
 
 class TestRuleEngine:
     def setup_method(self):
@@ -53,6 +64,11 @@ class TestRuleEngine:
         result = self.engine.check_keywords(text)
         assert result['flagged'] is False
         assert len(result['matched_terms']) == 0
+
+    def test_empty_input_no_flags(self):
+        result = self.engine.analyze("")
+        assert result["flagged"] is False
+        assert result["risk_score"] == 0
 
     def test_pattern_matching(self):
         text = "We must rise and eliminate those who oppose us"
