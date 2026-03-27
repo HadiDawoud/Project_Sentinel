@@ -92,7 +92,33 @@ class SentinelPipeline:
         return output
 
     def classify_batch(self, texts: List[str]) -> List[Dict]:
-        return [self.classify(text) for text in texts]
+        if not texts:
+            return []
+
+        preprocessed = [self.preprocessor.preprocess(t) for t in texts]
+        rule_results = [self.rule_engine.analyze(p['cleaned']) for p in preprocessed]
+        ml_batch = self.classifier.predict_batch(texts)
+
+        outputs: List[Dict] = []
+        for i, text in enumerate(texts):
+            rule_result = rule_results[i]
+            ml_result = ml_batch[i]
+            ml_for_fuse = {k: v for k, v in ml_result.items() if k != 'text'}
+            fused_result = self.fusion.fuse(rule_result, ml_for_fuse)
+            output = {
+                'timestamp': datetime.now().isoformat(),
+                'input': text,
+                'label': fused_result['label'],
+                'confidence': fused_result['confidence'],
+                'risk_score': fused_result['risk_score'],
+                'flagged_terms': fused_result['flagged_terms'],
+                'reasoning': fused_result['reasoning'],
+                'rule_amplification': fused_result['rule_amplification'],
+            }
+            self._log_result(output)
+            outputs.append(output)
+
+        return outputs
 
     def classify_from_file(self, file_path: str, output_path: Optional[str] = None) -> List[Dict]:
         path = Path(file_path)
