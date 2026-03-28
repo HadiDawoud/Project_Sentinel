@@ -142,3 +142,45 @@ class TestScoreFusion:
         assert self.fusion._determine_label(35) == "Mildly Radical"
         assert self.fusion._determine_label(60) == "Moderately Radical"
         assert self.fusion._determine_label(85) == "Highly Radical"
+
+    def test_fused_confidence_and_risk_within_bounds(self):
+        rule_result = {
+            'flagged': False,
+            'matched_terms': [],
+            'risk_score': 0,
+            'has_high_risk_terms': False,
+        }
+        ml_result = {
+            'label': 'Non-Radical',
+            'confidence': 0.95,
+            'probabilities': {
+                'Non-Radical': 0.95,
+                'Mildly Radical': 0.03,
+                'Moderately Radical': 0.01,
+                'Highly Radical': 0.01,
+            },
+        }
+        result = self.fusion.fuse(rule_result, ml_result)
+        assert 0 <= result['confidence'] <= 1
+        assert 0 <= result['risk_score'] <= 100
+
+    def test_high_risk_rules_cap_confidence_at_one(self):
+        rule_result = {
+            'flagged': True,
+            'matched_terms': ['kill'],
+            'risk_score': 90,
+            'has_high_risk_terms': True,
+        }
+        ml_result = {
+            'label': 'Highly Radical',
+            'confidence': 0.99,
+            'probabilities': {
+                'Non-Radical': 0.0,
+                'Mildly Radical': 0.0,
+                'Moderately Radical': 0.01,
+                'Highly Radical': 0.99,
+            },
+        }
+        result = self.fusion.fuse(rule_result, ml_result)
+        assert result['confidence'] <= 1.0
+        assert result['risk_score'] <= 100
