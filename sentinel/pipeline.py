@@ -1,4 +1,5 @@
 import logging
+import uuid
 import yaml
 import json
 from collections import OrderedDict
@@ -80,6 +81,7 @@ class SentinelPipeline:
                 **cached,
                 'timestamp': datetime.now().isoformat(),
                 'input': text,
+                'audit_id': str(uuid.uuid4()),
             }
             self._log_result(output)
             return output
@@ -92,6 +94,7 @@ class SentinelPipeline:
 
         output = {
             'timestamp': datetime.now().isoformat(),
+            'audit_id': str(uuid.uuid4()),
             'input': text,
             'label': fused_result['label'],
             'confidence': fused_result['confidence'],
@@ -111,7 +114,11 @@ class SentinelPipeline:
         self._log_result(output)
 
         if self._classify_cache_max > 0 and not return_raw:
-            stored = {k: v for k, v in output.items() if k != 'timestamp'}
+            stored = {
+                k: v
+                for k, v in output.items()
+                if k not in ('timestamp', 'audit_id')
+            }
             self._classify_cache[text] = stored
             self._classify_cache.move_to_end(text)
             while len(self._classify_cache) > self._classify_cache_max:
@@ -135,6 +142,7 @@ class SentinelPipeline:
             fused_result = self.fusion.fuse(rule_result, ml_for_fuse)
             output = {
                 'timestamp': datetime.now().isoformat(),
+                'audit_id': str(uuid.uuid4()),
                 'input': text,
                 'label': fused_result['label'],
                 'confidence': fused_result['confidence'],

@@ -37,6 +37,7 @@ class BatchInput(BaseModel):
 
 
 class ClassificationResult(BaseModel):
+    audit_id: str
     label: str
     confidence: float
     risk_score: int
