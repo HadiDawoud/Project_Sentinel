@@ -6,10 +6,17 @@ from pathlib import Path
 
 from sentinel.pipeline import SentinelPipeline
 
+__version__ = "1.0.0"
+
 
 def main():
     parser = argparse.ArgumentParser(
         description="Project Sentinel - Radical Content Detection System"
+    )
+    parser.add_argument(
+        '--version',
+        action='version',
+        version=f'%(prog)s {__version__}'
     )
     parser.add_argument(
         'input',
