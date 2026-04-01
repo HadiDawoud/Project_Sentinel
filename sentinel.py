@@ -11,6 +11,7 @@ from sentinel.pipeline import SentinelPipeline
 __version__ = "1.0.0"
 
 DEFAULT_CONFIG = os.environ.get('SENTINEL_CONFIG', 'config.yaml')
+MAX_INPUT_LENGTH = 10000
 
 
 def main():
@@ -95,6 +96,10 @@ def main():
     if not args.input.strip():
         print("Error: Input cannot be empty or whitespace only", file=sys.stderr)
         sys.exit(1)
+
+    if len(args.input) > MAX_INPUT_LENGTH:
+        print(f"Warning: Input truncated from {len(args.input)} to {MAX_INPUT_LENGTH} chars", file=sys.stderr)
+        args.input = args.input[:MAX_INPUT_LENGTH]
 
     pipeline = SentinelPipeline(config_path=args.config)
 
