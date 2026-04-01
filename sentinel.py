@@ -42,11 +42,16 @@ def main():
         action='store_true',
         help="Verbose output"
     )
+    parser.add_argument(
+        '-q', '--quiet',
+        action='store_true',
+        help="Minimal output (just the JSON)"
+    )
 
     args = parser.parse_args()
 
     if not args.input:
-        print("Error: Input text or file path required")
+        print("Error: Input text or file path required", file=sys.stderr)
         parser.print_help()
         sys.exit(1)
 
@@ -54,10 +59,16 @@ def main():
 
     if Path(args.input).is_file():
         results = pipeline.classify_from_file(args.input, args.output)
-        print(json.dumps(results, indent=2))
+        if not args.quiet:
+            print(json.dumps(results, indent=2))
+        else:
+            print(json.dumps(results))
     else:
         result = pipeline.classify(args.input, return_raw=args.raw)
-        print(json.dumps(result, indent=2))
+        if not args.quiet:
+            print(json.dumps(result, indent=2))
+        else:
+            print(json.dumps(result))
 
 
 if __name__ == "__main__":
