@@ -81,7 +81,28 @@ patterns:
     - "disease"
     - "filth"
 
+  conspiracy:
+    - "new world order"
+    - "deep state"
+    - "illuminati"
+    - "globalist"
+    - "sheeple"
+    - "wake up"
+    - "they don't want you to know"
+    - "hidden agenda"
+    - "controlled opposition"
+
+  inciteful:
+    - "silence is consent"
+    - "complicit"
+    - "complicity"
+    - "if you are not with us"
+    - "neutrality is violence"
+    - "words are not enough"
+
 severity_weights:
   high_risk: 3
   medium_risk: 2
   low_risk: 1
+  conspiracy: 2
+  inciteful: 2
