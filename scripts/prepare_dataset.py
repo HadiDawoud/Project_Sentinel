@@ -82,10 +82,16 @@ def main() -> None:
     parser.add_argument("--test", type=float, default=0.15, help="Test fraction (default 0.15)")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for splitting")
     parser.add_argument("--num-labels", type=int, default=4, help="Number of classes (default 4)")
+    parser.add_argument("--remove-duplicates", action="store_true", help="Remove duplicate texts")
     args = parser.parse_args()
 
     df = pd.read_csv(args.input_csv)
     validate_frame(df, num_labels=args.num_labels)
+
+    if args.remove_duplicates:
+        before = len(df)
+        df = df.drop_duplicates(subset=['text'])
+        print(f"Removed {before - len(df)} duplicate texts")
 
     train_df, val_df, test_df = stratified_split(
         df, args.train, args.val, args.test, args.seed
