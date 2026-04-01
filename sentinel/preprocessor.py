@@ -21,6 +21,9 @@ class TextPreprocessor:
             "]+", flags=re.UNICODE
         )
 
+    def __repr__(self):
+        return f"TextPreprocessor()"
+
     def clean(self, text: str) -> str:
         text = text.lower()
         text = self.emoji_pattern.sub(' ', text)
