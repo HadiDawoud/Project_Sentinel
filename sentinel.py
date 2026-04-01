@@ -5,6 +5,7 @@ import io
 import json
 import os
 import sys
+import yaml
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -98,7 +99,7 @@ def main():
     )
     parser.add_argument(
         '--format',
-        choices=['json', 'csv'],
+        choices=['json', 'csv', 'yaml'],
         default='json',
         help="Output format (default: json)"
     )
@@ -157,6 +158,8 @@ def main():
                 print(colorize_label(r.get('label', 'Unknown')))
         elif args.format == 'csv':
             print(to_csv(results))
+        elif args.format == 'yaml':
+            print(yaml.dump(results, default_flow_style=False))
         elif not args.quiet:
             print(json.dumps(results, indent=2))
         else:
@@ -168,6 +171,8 @@ def main():
             print(colorize_label(result.get('label', 'Unknown')))
         elif args.format == 'csv':
             print(to_csv([result]))
+        elif args.format == 'yaml':
+            print(yaml.dump(result, default_flow_style=False))
         elif not args.quiet:
             print(json.dumps(result, indent=2))
         else:
