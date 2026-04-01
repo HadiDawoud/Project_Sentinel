@@ -62,6 +62,7 @@ class ClassificationResult(BaseModel):
     risk_score: int
     flagged_terms: List[str]
     reasoning: str
+    latency_ms: Optional[float] = None
 
 
 @app.get("/", tags=["meta"], summary="Health check")

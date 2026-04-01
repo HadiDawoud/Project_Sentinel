@@ -1,4 +1,5 @@
 import logging
+import time
 import uuid
 import yaml
 import json
@@ -33,6 +34,7 @@ class SentinelPipeline:
         )
         pipe_cfg = self.config.get('pipeline', {})
         self._classify_cache_max = max(0, int(pipe_cfg.get('classify_cache_size', 0)))
+        self._include_latency_ms = bool(pipe_cfg.get('include_latency_ms', False))
         self._classify_cache: OrderedDict[str, Dict] = OrderedDict()
         self._setup_logging()
 
@@ -50,7 +52,7 @@ class SentinelPipeline:
                 'name': 'distilbert-base-uncased',
                 'num_labels': 4
             },
-            'pipeline': {'classify_cache_size': 0},
+            'pipeline': {'classify_cache_size': 0, 'include_latency_ms': False},
         }
 
     def _setup_logging(self) -> None:
@@ -77,20 +79,25 @@ class SentinelPipeline:
         ):
             self._classify_cache.move_to_end(text)
             cached = self._classify_cache[text]
+            t0 = time.perf_counter()
             output = {
                 **cached,
                 'timestamp': datetime.now().isoformat(),
                 'input': text,
                 'audit_id': str(uuid.uuid4()),
             }
+            if self._include_latency_ms:
+                output['latency_ms'] = round((time.perf_counter() - t0) * 1000, 2)
             self._log_result(output)
             return output
 
+        t0 = time.perf_counter()
         preprocessed = self.preprocessor.preprocess(text)
         rule_result = self.rule_engine.analyze(preprocessed['cleaned'])
         ml_result = self.classifier.predict(text)
 
         fused_result = self.fusion.fuse(rule_result, ml_result)
+        latency_ms = round((time.perf_counter() - t0) * 1000, 2)
 
         output = {
             'timestamp': datetime.now().isoformat(),
@@ -103,6 +110,8 @@ class SentinelPipeline:
             'reasoning': fused_result['reasoning'],
             'rule_amplification': fused_result['rule_amplification'],
         }
+        if self._include_latency_ms:
+            output['latency_ms'] = latency_ms
 
         if return_raw:
             output['raw'] = {
@@ -117,7 +126,7 @@ class SentinelPipeline:
             stored = {
                 k: v
                 for k, v in output.items()
-                if k not in ('timestamp', 'audit_id')
+                if k not in ('timestamp', 'audit_id', 'latency_ms')
             }
             self._classify_cache[text] = stored
             self._classify_cache.move_to_end(text)
@@ -130,9 +139,12 @@ class SentinelPipeline:
         if not texts:
             return []
 
+        t0 = time.perf_counter()
         preprocessed = [self.preprocessor.preprocess(t) for t in texts]
         rule_results = [self.rule_engine.analyze(p['cleaned']) for p in preprocessed]
         ml_batch = self.classifier.predict_batch(texts)
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+        per_item_ms = round(elapsed_ms / len(texts), 2) if self._include_latency_ms else None
 
         outputs: List[Dict] = []
         for i, text in enumerate(texts):
@@ -151,6 +163,8 @@ class SentinelPipeline:
                 'reasoning': fused_result['reasoning'],
                 'rule_amplification': fused_result['rule_amplification'],
             }
+            if per_item_ms is not None:
+                output['latency_ms'] = per_item_ms
             self._log_result(output)
             outputs.append(output)
 

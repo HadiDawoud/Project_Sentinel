@@ -26,6 +26,8 @@ pipeline:
   fusion_method: weighted_average
   # LRU cache for identical classify() inputs; 0 disables (NEXT_STEPS §7)
   classify_cache_size: 0
+  # Wall-clock latency in responses for profiling; default off
+  include_latency_ms: false
 
 logging:
   level: INFO
