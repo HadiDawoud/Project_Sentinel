@@ -22,7 +22,7 @@ def main():
     parser.add_argument(
         'input',
         nargs='?',
-        help="Text to classify or path to input file (JSON, JSONL, TXT)"
+        help="Text to classify, path to file, or - for stdin"
     )
     parser.add_argument(
         '-c', '--config',
@@ -55,6 +55,9 @@ def main():
         print("Error: Input text or file path required", file=sys.stderr)
         parser.print_help()
         sys.exit(1)
+
+    if args.input == '-':
+        args.input = sys.stdin.read()
 
     if not args.input.strip():
         print("Error: Input cannot be empty or whitespace only", file=sys.stderr)
