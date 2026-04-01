@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 import argparse
+import csv
+import io
 import json
 import os
 import sys
@@ -26,6 +28,19 @@ AVAILABLE_LABELS = ['Non-Radical', 'Mildly Radical', 'Moderately Radical', 'High
 def colorize_label(label):
     color = LABEL_COLORS.get(label, '')
     return f"{color}{label}{RESET_COLOR}" if color else label
+
+
+def to_csv(results):
+    output = io.StringIO()
+    if not results:
+        return ""
+    fieldnames = ['label', 'confidence', 'risk_score', 'flagged_terms', 'reasoning']
+    writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction='ignore')
+    writer.writeheader()
+    for r in results:
+        r['flagged_terms'] = ', '.join(r.get('flagged_terms', []))
+        writer.writerow(r)
+    return output.getvalue()
 
 
 def main():
@@ -81,6 +96,12 @@ def main():
         action='store_true',
         help="List available classification labels"
     )
+    parser.add_argument(
+        '--format',
+        choices=['json', 'csv'],
+        default='json',
+        help="Output format (default: json)"
+    )
 
     args = parser.parse_args()
 
@@ -134,6 +155,8 @@ def main():
         if args.label_only:
             for r in results:
                 print(colorize_label(r.get('label', 'Unknown')))
+        elif args.format == 'csv':
+            print(to_csv(results))
         elif not args.quiet:
             print(json.dumps(results, indent=2))
         else:
@@ -143,6 +166,8 @@ def main():
         result['timestamp'] = datetime.now(timezone.utc).isoformat()
         if args.label_only:
             print(colorize_label(result.get('label', 'Unknown')))
+        elif args.format == 'csv':
+            print(to_csv([result]))
         elif not args.quiet:
             print(json.dumps(result, indent=2))
         else:
