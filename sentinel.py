@@ -4,12 +4,21 @@ import csv
 import io
 import json
 import os
+import signal
 import sys
 import yaml
 from datetime import datetime, timezone
 from pathlib import Path
 
 from sentinel.pipeline import SentinelPipeline
+
+
+def signal_handler(signum, frame):
+    print("\nInterrupted. Exiting gracefully.", file=sys.stderr)
+    sys.exit(130)
+
+
+signal.signal(signal.SIGINT, signal_handler)
 
 __version__ = "1.0.0"
 
