@@ -190,3 +190,50 @@ class TestScoreFusion:
         result = self.fusion.fuse(rule_result, ml_result)
         assert result['confidence'] <= 1.0
         assert result['risk_score'] <= 100
+
+
+class TestSentinelPipeline:
+    def setup_method(self):
+        self.pipeline = SentinelPipeline()
+
+    def test_classify_returns_dict(self):
+        result = self.pipeline.classify("This is a test message")
+        assert isinstance(result, dict)
+        assert 'label' in result
+        assert 'risk_score' in result
+        assert 'confidence' in result
+        assert 'audit_id' in result
+
+    def test_classify_includes_flagged_terms(self):
+        result = self.pipeline.classify("We must fight against the enemy")
+        assert 'flagged_terms' in result
+
+    def test_classify_includes_reasoning(self):
+        result = self.pipeline.classify("Test message")
+        assert 'reasoning' in result
+        assert isinstance(result['reasoning'], str)
+
+    def test_classify_batch_empty_list(self):
+        result = self.pipeline.classify_batch([])
+        assert result == []
+
+    def test_classify_batch_returns_list(self):
+        texts = ["Message one", "Message two"]
+        result = self.pipeline.classify_batch(texts)
+        assert isinstance(result, list)
+        assert len(result) == 2
+
+    def test_classify_from_file_unsupported_format(self):
+        with pytest.raises(ValueError):
+            self.pipeline.classify_from_file("test.csv")
+
+    def test_get_cache_stats(self):
+        stats = self.pipeline.get_cache_stats()
+        assert 'enabled' in stats
+        assert 'max_size' in stats
+        assert 'hits' in stats
+        assert 'misses' in stats
+
+    def test_classify_with_return_raw(self):
+        result = self.pipeline.classify("Test", return_raw=True)
+        assert 'raw' in result
