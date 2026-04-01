@@ -1,4 +1,5 @@
 import logging
+import sys
 import time
 import uuid
 import yaml
@@ -139,6 +140,7 @@ class SentinelPipeline:
         if not texts:
             return []
 
+        total = len(texts)
         t0 = time.perf_counter()
         preprocessed = [self.preprocessor.preprocess(t) for t in texts]
         rule_results = [self.rule_engine.analyze(p['cleaned']) for p in preprocessed]
@@ -148,6 +150,9 @@ class SentinelPipeline:
 
         outputs: List[Dict] = []
         for i, text in enumerate(texts):
+            if total > 10 and i % max(1, total // 10) == 0:
+                pct = round((i / total) * 100)
+                print(f"\rProcessing: {pct}% ({i}/{total})", file=sys.stderr, end='', flush=True)
             rule_result = rule_results[i]
             ml_result = ml_batch[i]
             ml_for_fuse = {k: v for k, v in ml_result.items() if k != 'text'}
@@ -168,6 +173,8 @@ class SentinelPipeline:
             self._log_result(output)
             outputs.append(output)
 
+        if total > 10:
+            print(f"\rProcessing: 100% ({total}/{total})", file=sys.stderr)
         return outputs
 
     def classify_from_file(self, file_path: str, output_path: Optional[str] = None) -> List[Dict]:
