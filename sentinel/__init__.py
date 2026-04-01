@@ -3,12 +3,15 @@ from .rule_engine import RuleEngine
 from .fusion import ScoreFusion
 from .pipeline import SentinelPipeline
 
+__version__ = '0.1.0'
+
 __all__ = [
     'TextPreprocessor',
     'RuleEngine',
     'RadicalClassifier',
     'ScoreFusion',
     'SentinelPipeline',
+    '__version__',
 ]
 
 
