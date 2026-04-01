@@ -141,10 +141,16 @@ class SentinelPipeline:
 
         return output
 
-    def classify_batch(self, texts: List[str]) -> List[Dict]:
+    def classify_batch(self, texts: List[str], parallel: bool = False) -> List[Dict]:
         if not texts:
             return []
 
+        if parallel:
+            return self._classify_batch_parallel(texts)
+        
+        return self._classify_batch_sequential(texts)
+
+    def _classify_batch_sequential(self, texts: List[str]) -> List[Dict]:
         total = len(texts)
         t0 = time.perf_counter()
         preprocessed = [self.preprocessor.preprocess(t) for t in texts]
@@ -180,6 +186,17 @@ class SentinelPipeline:
 
         if total > 10:
             print(f"\rProcessing: 100% ({total}/{total})", file=sys.stderr)
+        return outputs
+
+    def _classify_batch_parallel(self, texts: List[str]) -> List[Dict]:
+        from concurrent.futures import ThreadPoolExecutor
+        total = len(texts)
+        outputs: List[Dict] = []
+        
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            results = list(executor.map(self.classify, texts))
+            outputs = results
+        
         return outputs
 
     def classify_from_file(self, file_path: str, output_path: Optional[str] = None) -> List[Dict]:
