@@ -13,3 +13,8 @@ slowapi>=0.1.9
 pytest>=7.4.0
 pytest-asyncio>=0.21.0
 httpx>=0.24.0
+pydantic>=2.0.0
+python-multipart>=0.0.6
+pydantic-settings>=2.0.0
+tensorboard>=2.14.0
+
