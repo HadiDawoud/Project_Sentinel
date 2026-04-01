@@ -70,6 +70,19 @@ async def root():
     return {"message": "Project Sentinel API", "status": "running"}
 
 
+@app.get("/health", tags=["meta"], summary="Detailed health status")
+async def health():
+    return {
+        "status": "healthy",
+        "version": "0.1.0",
+        "endpoints": {
+            "classify": "/classify",
+            "batch": "/classify/batch",
+            "file": "/classify/file"
+        }
+    }
+
+
 @app.post(
     "/classify",
     response_model=ClassificationResult,
