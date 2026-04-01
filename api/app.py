@@ -146,6 +146,11 @@ async def classify_file(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/cache/stats", tags=["meta"], summary="Get cache statistics")
+async def cache_stats():
+    return pipeline.get_cache_stats()
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
