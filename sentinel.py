@@ -56,6 +56,11 @@ def main():
         action='store_true',
         help="Show usage examples"
     )
+    parser.add_argument(
+        '-l', '--label-only',
+        action='store_true',
+        help="Output just the label (good for piping)"
+    )
 
     args = parser.parse_args()
 
@@ -96,14 +101,19 @@ def main():
     if Path(args.input).is_file():
         results = pipeline.classify_from_file(args.input, args.output)
         results['timestamp'] = datetime.now(timezone.utc).isoformat()
-        if not args.quiet:
+        if args.label_only:
+            for r in results:
+                print(r.get('label', 'Unknown'))
+        elif not args.quiet:
             print(json.dumps(results, indent=2))
         else:
             print(json.dumps(results))
     else:
         result = pipeline.classify(args.input, return_raw=args.raw)
         result['timestamp'] = datetime.now(timezone.utc).isoformat()
-        if not args.quiet:
+        if args.label_only:
+            print(result.get('label', 'Unknown'))
+        elif not args.quiet:
             print(json.dumps(result, indent=2))
         else:
             print(json.dumps(result))
