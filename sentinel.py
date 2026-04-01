@@ -13,6 +13,19 @@ __version__ = "1.0.0"
 DEFAULT_CONFIG = os.environ.get('SENTINEL_CONFIG', 'config.yaml')
 MAX_INPUT_LENGTH = 10000
 
+LABEL_COLORS = {
+    'Non-Radical': '\033[92m',
+    'Mildly Radical': '\033[93m',
+    'Moderately Radical': '\033[33m',
+    'Highly Radical': '\033[91m',
+}
+RESET_COLOR = '\033[0m'
+
+
+def colorize_label(label):
+    color = LABEL_COLORS.get(label, '')
+    return f"{color}{label}{RESET_COLOR}" if color else label
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -108,7 +121,7 @@ def main():
         results['timestamp'] = datetime.now(timezone.utc).isoformat()
         if args.label_only:
             for r in results:
-                print(r.get('label', 'Unknown'))
+                print(colorize_label(r.get('label', 'Unknown')))
         elif not args.quiet:
             print(json.dumps(results, indent=2))
         else:
@@ -117,7 +130,7 @@ def main():
         result = pipeline.classify(args.input, return_raw=args.raw)
         result['timestamp'] = datetime.now(timezone.utc).isoformat()
         if args.label_only:
-            print(result.get('label', 'Unknown'))
+            print(colorize_label(result.get('label', 'Unknown')))
         elif not args.quiet:
             print(json.dumps(result, indent=2))
         else:
