@@ -22,7 +22,9 @@ def train_model(
     output_dir: str = "models/checkpoints",
     epochs: int = 3,
     batch_size: int = 16,
-    learning_rate: float = 2e-5
+    learning_rate: float = 2e-5,
+    warmup_steps: int = 500,
+    weight_decay: float = 0.01
 ):
     from datasets import Dataset
     
@@ -61,13 +63,15 @@ def train_model(
         per_device_train_batch_size=batch_size,
         per_device_eval_batch_size=batch_size,
         learning_rate=learning_rate,
-        weight_decay=0.01,
+        warmup_steps=warmup_steps,
+        weight_decay=weight_decay,
         evaluation_strategy="epoch",
         save_strategy="epoch",
         load_best_model_at_end=True,
         metric_for_best_model="f1",
         logging_dir="models/logs",
-        report_to="none"
+        report_to="none",
+        save_total_limit=3
     )
     
     trainer = Trainer(
@@ -93,11 +97,17 @@ if __name__ == "__main__":
     parser.add_argument('--val', default='data/processed/val.csv')
     parser.add_argument('--epochs', type=int, default=3)
     parser.add_argument('--batch-size', type=int, default=16)
+    parser.add_argument('--learning-rate', type=float, default=2e-5)
+    parser.add_argument('--warmup-steps', type=int, default=500)
+    parser.add_argument('--weight-decay', type=float, default=0.01)
     args = parser.parse_args()
     
     train_model(
         train_file=args.train,
         val_file=args.val,
         epochs=args.epochs,
-        batch_size=args.batch_size
+        batch_size=args.batch_size,
+        learning_rate=args.learning_rate,
+        warmup_steps=args.warmup_steps,
+        weight_decay=args.weight_decay
     )
