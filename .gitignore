@@ -43,3 +43,16 @@ Thumbs.db
 # Project specific
 NEXT_STEPS.md
 CONTEXT.md
+
+# Cache
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Jupyter
+*.ipynb_checkpoints/
+
+# Temporary files
+*.tmp
+*.temp
+
