@@ -2,6 +2,7 @@
 import argparse
 import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 from sentinel.pipeline import SentinelPipeline
@@ -63,12 +64,14 @@ def main():
 
     if Path(args.input).is_file():
         results = pipeline.classify_from_file(args.input, args.output)
+        results['timestamp'] = datetime.now(timezone.utc).isoformat()
         if not args.quiet:
             print(json.dumps(results, indent=2))
         else:
             print(json.dumps(results))
     else:
         result = pipeline.classify(args.input, return_raw=args.raw)
+        result['timestamp'] = datetime.now(timezone.utc).isoformat()
         if not args.quiet:
             print(json.dumps(result, indent=2))
         else:
