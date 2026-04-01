@@ -37,6 +37,8 @@ class SentinelPipeline:
         self._classify_cache_max = max(0, int(pipe_cfg.get('classify_cache_size', 0)))
         self._include_latency_ms = bool(pipe_cfg.get('include_latency_ms', False))
         self._classify_cache: OrderedDict[str, Dict] = OrderedDict()
+        self._cache_hits = 0
+        self._cache_misses = 0
         self._setup_logging()
 
     def _load_config(self, config_path: str) -> Dict:
@@ -78,6 +80,7 @@ class SentinelPipeline:
             and not return_raw
             and text in self._classify_cache
         ):
+            self._cache_hits += 1
             self._classify_cache.move_to_end(text)
             cached = self._classify_cache[text]
             t0 = time.perf_counter()
@@ -91,6 +94,8 @@ class SentinelPipeline:
                 output['latency_ms'] = round((time.perf_counter() - t0) * 1000, 2)
             self._log_result(output)
             return output
+        else:
+            self._cache_misses += 1
 
         t0 = time.perf_counter()
         preprocessed = self.preprocessor.preprocess(text)
@@ -205,6 +210,16 @@ class SentinelPipeline:
                 json.dump(results, f, indent=2)
         
         return results
+
+    def get_cache_stats(self) -> Dict:
+        return {
+            'enabled': self._classify_cache_max > 0,
+            'max_size': self._classify_cache_max,
+            'current_size': len(self._classify_cache),
+            'hits': self._cache_hits,
+            'misses': self._cache_misses,
+            'hit_rate': round(self._cache_hits / max(1, self._cache_hits + self._cache_misses), 3),
+        }
 
     def _log_result(self, result: Dict) -> None:
         if self.log_console and self._audit_logger.handlers:
