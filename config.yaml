@@ -19,6 +19,11 @@ model:
   num_labels: 4
   checkpoint_path: models/checkpoints
   max_length: 256
+  batch_size: 16
+  learning_rate: 2e-5
+  epochs: 3
+  warmup_steps: 500
+  weight_decay: 0.01
 
 pipeline:
   enable_rule_engine: true
