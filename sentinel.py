@@ -55,6 +55,10 @@ def main():
         parser.print_help()
         sys.exit(1)
 
+    if not args.input.strip():
+        print("Error: Input cannot be empty or whitespace only", file=sys.stderr)
+        sys.exit(1)
+
     pipeline = SentinelPipeline(config_path=args.config)
 
     if Path(args.input).is_file():
