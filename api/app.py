@@ -151,6 +151,14 @@ async def cache_stats():
     return pipeline.get_cache_stats()
 
 
+@app.get("/latency", tags=["meta"], summary="Get pipeline latency info")
+async def latency_info():
+    return {
+        "include_latency_ms": pipeline._include_latency_ms,
+        "cache_enabled": pipeline._classify_cache_max > 0
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
