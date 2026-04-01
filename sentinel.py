@@ -20,6 +20,7 @@ LABEL_COLORS = {
     'Highly Radical': '\033[91m',
 }
 RESET_COLOR = '\033[0m'
+AVAILABLE_LABELS = ['Non-Radical', 'Mildly Radical', 'Moderately Radical', 'Highly Radical']
 
 
 def colorize_label(label):
@@ -75,8 +76,19 @@ def main():
         action='store_true',
         help="Output just the label (good for piping)"
     )
+    parser.add_argument(
+        '--list-labels',
+        action='store_true',
+        help="List available classification labels"
+    )
 
     args = parser.parse_args()
+
+    if args.list_labels:
+        print("Available labels:")
+        for i, label in enumerate(AVAILABLE_LABELS):
+            print(f"  {i}: {colorize_label(label)}")
+        sys.exit(0)
 
     if args.examples:
         print("""Usage examples:
