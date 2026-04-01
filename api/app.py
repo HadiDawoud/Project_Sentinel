@@ -83,6 +83,18 @@ async def health():
     }
 
 
+@app.get("/docs/info", tags=["meta"], summary="Get API documentation info")
+async def docs_info():
+    return {
+        "title": "Project Sentinel API",
+        "description": "Hybrid rule-based + ML classification for radicalization detection",
+        "version": "0.1.0",
+        "swagger_url": "/docs",
+        "redoc_url": "/redoc",
+        "openapi_url": "/openapi.json"
+    }
+
+
 @app.post(
     "/classify",
     response_model=ClassificationResult,
