@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -8,6 +9,8 @@ from pathlib import Path
 from sentinel.pipeline import SentinelPipeline
 
 __version__ = "1.0.0"
+
+DEFAULT_CONFIG = os.environ.get('SENTINEL_CONFIG', 'config.yaml')
 
 
 def main():
@@ -26,8 +29,8 @@ def main():
     )
     parser.add_argument(
         '-c', '--config',
-        default='config.yaml',
-        help="Path to config file (default: config.yaml)"
+        default=DEFAULT_CONFIG,
+        help=f"Path to config file (default: {DEFAULT_CONFIG})"
     )
     parser.add_argument(
         '-o', '--output',
