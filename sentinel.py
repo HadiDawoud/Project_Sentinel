@@ -51,8 +51,33 @@ def main():
         action='store_true',
         help="Minimal output (just the JSON)"
     )
+    parser.add_argument(
+        '--examples',
+        action='store_true',
+        help="Show usage examples"
+    )
 
     args = parser.parse_args()
+
+    if args.examples:
+        print("""Usage examples:
+
+  # Classify a single text
+  python sentinel.py "some text to classify"
+
+  # Classify from a file
+  python sentinel.py input.json -o results.json
+
+  # Read from stdin (piping)
+  echo "text here" | python sentinel.py -
+
+  # Use a different config
+  python sentinel.py "text" -c custom_config.yaml
+
+  # Minimal output (good for scripts)
+  python sentinel.py "text" -q
+""")
+        sys.exit(0)
 
     if not args.input:
         print("Error: Input text or file path required", file=sys.stderr)
