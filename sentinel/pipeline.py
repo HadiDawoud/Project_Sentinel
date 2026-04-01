@@ -63,6 +63,8 @@ class SentinelPipeline:
         self.log_level = log_config.get('level', 'INFO')
         self.log_file = log_config.get('file', 'logs/sentinel.log')
         self.log_console = log_config.get('console', True)
+        self.audit_enabled = log_config.get('audit_enabled', True)
+        self.audit_file = log_config.get('audit_file', 'logs/audit.log')
         Path('logs').mkdir(exist_ok=True)
 
         self._audit_logger = logging.getLogger('sentinel.pipeline.classify')
@@ -246,5 +248,18 @@ class SentinelPipeline:
             try:
                 with open(self.log_file, 'a') as f:
                     f.write(json.dumps(result) + '\n')
+            except Exception:
+                pass
+        if self.audit_enabled and self.audit_file:
+            try:
+                with open(self.audit_file, 'a') as f:
+                    audit_entry = {
+                        'timestamp': result.get('timestamp'),
+                        'audit_id': result.get('audit_id'),
+                        'label': result.get('label'),
+                        'risk_score': result.get('risk_score'),
+                        'confidence': result.get('confidence'),
+                    }
+                    f.write(json.dumps(audit_entry) + '\n')
             except Exception:
                 pass
