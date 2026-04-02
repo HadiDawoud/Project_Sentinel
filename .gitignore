@@ -43,6 +43,7 @@ Thumbs.db
 # Project specific
 NEXT_STEPS.md
 CONTEXT.md
+COMMITS_1000_ROADMAP.md
 
 # Cache
 .pytest_cache/
