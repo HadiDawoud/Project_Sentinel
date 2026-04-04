@@ -2,6 +2,7 @@ import pytest
 from sentinel.preprocessor import TextPreprocessor
 from sentinel.rule_engine import RuleEngine
 from sentinel.fusion import ScoreFusion
+from sentinel.pipeline import SentinelPipeline
 
 
 class TestTextPreprocessor:

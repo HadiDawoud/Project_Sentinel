@@ -33,7 +33,13 @@ class RuleEngine:
         }
 
         for severity, keywords in self.keywords.items():
-            matches = [kw for kw in keywords if kw.lower() in text_lower]
+            matches = []
+            for kw in keywords:
+                # Use regex for whole-word matching
+                pattern = rf'\b{re.escape(kw.lower())}\b'
+                if re.search(pattern, text_lower):
+                    matches.append(kw)
+            
             if matches:
                 results['matched_terms'].extend(matches)
                 weight = self.severity_weights.get(severity, 1)
