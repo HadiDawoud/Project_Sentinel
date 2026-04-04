@@ -224,9 +224,11 @@ class TestSentinelPipeline:
         assert isinstance(result, list)
         assert len(result) == 2
 
-    def test_classify_from_file_unsupported_format(self):
-        with pytest.raises(ValueError):
-            self.pipeline.classify_from_file("test.csv")
+    def test_classify_from_file_unsupported_format(self, tmp_path):
+        unsupported = tmp_path / "test.csv"
+        unsupported.write_text("dummy")
+        with pytest.raises(ValueError, match="Unsupported file format"):
+            self.pipeline.classify_from_file(str(unsupported))
 
     def test_get_cache_stats(self):
         stats = self.pipeline.get_cache_stats()
