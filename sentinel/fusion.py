@@ -125,7 +125,7 @@ class ScoreFusion:
         bias_info: Dict
     ) -> bool:
         # 1. Low confidence
-        if final_confidence < 0.6:
+        if final_confidence < 0.7:
             return True
         
         # 2. Rule-ML Disagreement
@@ -135,12 +135,12 @@ class ScoreFusion:
         
         # 3. High bias risk
         if bias_info.get('high_bias_risk', False):
-            # If it's also flagged, it definitely needs review
-            if final_risk_score > 30:
+            # If it's flagged as anything other than Non-Radical, it needs review
+            if final_risk_score >= 25:
                 return True
         
         # 4. Borderline cases
-        if 45 <= final_risk_score <= 55 or 70 <= final_risk_score <= 80:
+        if 20 <= final_risk_score <= 30 or 45 <= final_risk_score <= 55 or 70 <= final_risk_score <= 80:
             return True
             
         return False
