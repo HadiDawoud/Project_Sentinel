@@ -46,12 +46,13 @@ python sentinel.py "text" --raw
 uvicorn api.app:app --reload
 ```
 
-## Configuration
+## Responsible AI & Ethics
 
-Edit `config.yaml` to adjust weights, model settings, and rule paths. Update `data/rules/keywords.yaml` to extend keyword/pattern rules.
+Project Sentinel is designed as an **assistive tool** for human moderators, not an autonomous decision-maker.
 
-## Testing
+- **Human Review**: Results with `requires_human_review: true` must be manually verified.
+- **Bias Awareness**: Be aware of potential biases in both keyword rules and ML models, especially regarding religious, political, and identity-related content.
+- **Transparency**: Detailed reasoning is provided for each classification to ensure accountability.
+- **Fairness**: The system includes a fairness evaluator to track and mitigate disproportionate flagging of sensitive categories.
 
-```bash
-pytest tests/
-```
+See [CONTEXT.md](CONTEXT.md) for more on the project's ethical framework.
