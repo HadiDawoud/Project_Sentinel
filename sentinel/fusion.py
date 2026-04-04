@@ -1,4 +1,5 @@
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
+from .fairness import FairnessEvaluator
 
 
 class ScoreFusion:
@@ -17,6 +18,7 @@ class ScoreFusion:
             2: "Moderately Radical",
             3: "Highly Radical"
         }
+        self.fairness_evaluator = FairnessEvaluator()
 
     def fuse(
         self,
@@ -39,20 +41,34 @@ class ScoreFusion:
             self.ml_weight * ml_risk_score
         )
         
+        # Normalize weights if sum > 1
+        total_weight = self.rule_weight + self.ml_weight
+        if total_weight > 1.0:
+            fused_score /= total_weight
+        
         final_risk_score = min(int(fused_score * 100), 100)
         final_label = self._determine_label(final_risk_score)
         final_confidence = self._compute_confidence(
             rule_result, ml_result, final_risk_score
         )
 
+        matched_terms = rule_result.get('matched_terms', [])
+        bias_info = self.fairness_evaluator.check_bias_risk("", matched_terms)
+        
+        requires_review = self._check_requires_review(
+            rule_result, ml_result, final_confidence, final_risk_score, bias_info
+        )
+
         return {
             'label': final_label,
             'risk_score': final_risk_score,
             'confidence': final_confidence,
-            'flagged_terms': rule_result.get('matched_terms', []),
+            'flagged_terms': matched_terms,
             'rule_amplification': rule_result.get('has_high_risk_terms', False),
+            'requires_human_review': requires_review,
+            'bias_metadata': bias_info,
             'reasoning': self._generate_reasoning(
-                rule_result, ml_result, final_risk_score
+                rule_result, ml_result, final_risk_score, requires_review, bias_info
             )
         }
 
@@ -90,16 +106,52 @@ class ScoreFusion:
             self.rule_weight * rule_certainty
         )
         
+        # Normalize weight if sum > 1
+        total_weight = self.rule_weight + self.ml_weight
+        if total_weight > 1.0:
+            base_confidence /= total_weight
+        
         if rule_result.get('has_high_risk_terms'):
             base_confidence = min(base_confidence * 1.2, 1.0)
         
         return round(base_confidence, 2)
 
+    def _check_requires_review(
+        self,
+        rule_result: Dict,
+        ml_result: Dict,
+        final_confidence: float,
+        final_risk_score: int,
+        bias_info: Dict
+    ) -> bool:
+        # 1. Low confidence
+        if final_confidence < 0.6:
+            return True
+        
+        # 2. Rule-ML Disagreement
+        # If Rule says high risk but ML says non-radical
+        if rule_result.get('has_high_risk_terms') and ml_result.get('label') == 'Non-Radical':
+            return True
+        
+        # 3. High bias risk
+        if bias_info.get('high_bias_risk', False):
+            # If it's also flagged, it definitely needs review
+            if final_risk_score > 30:
+                return True
+        
+        # 4. Borderline cases
+        if 45 <= final_risk_score <= 55 or 70 <= final_risk_score <= 80:
+            return True
+            
+        return False
+
     def _generate_reasoning(
         self,
         rule_result: Dict,
         ml_result: Dict,
-        final_score: int
+        final_score: int,
+        requires_review: bool = False,
+        bias_info: Dict = None
     ) -> str:
         reasons = []
         
@@ -117,5 +169,11 @@ class ScoreFusion:
         
         if rule_result.get('has_high_risk_terms'):
             reasons.append("Rule engine applied amplification due to high-risk content")
+            
+        if bias_info and bias_info.get('high_bias_risk'):
+            reasons.append("Potential context-sensitive bias detected (sensitive categories)")
+            
+        if requires_review:
+            reasons.append("Flagged for human review due to ambiguity or potential bias")
         
         return "; ".join(reasons)

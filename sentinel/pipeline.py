@@ -115,6 +115,8 @@ class SentinelPipeline:
             'confidence': fused_result['confidence'],
             'risk_score': fused_result['risk_score'],
             'flagged_terms': fused_result['flagged_terms'],
+            'requires_human_review': fused_result['requires_human_review'],
+            'bias_metadata': fused_result['bias_metadata'],
             'reasoning': fused_result['reasoning'],
             'rule_amplification': fused_result['rule_amplification'],
         }
@@ -178,6 +180,8 @@ class SentinelPipeline:
                 'confidence': fused_result['confidence'],
                 'risk_score': fused_result['risk_score'],
                 'flagged_terms': fused_result['flagged_terms'],
+                'requires_human_review': fused_result['requires_human_review'],
+                'bias_metadata': fused_result['bias_metadata'],
                 'reasoning': fused_result['reasoning'],
                 'rule_amplification': fused_result['rule_amplification'],
             }
@@ -259,6 +263,8 @@ class SentinelPipeline:
                         'label': result.get('label'),
                         'risk_score': result.get('risk_score'),
                         'confidence': result.get('confidence'),
+                        'requires_human_review': result.get('requires_human_review'),
+                        'bias_metadata': result.get('bias_metadata'),
                     }
                     f.write(json.dumps(audit_entry) + '\n')
             except Exception:
