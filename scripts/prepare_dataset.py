@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Prepare labeled data for training: validate `text` / `label` columns and split
-into train, validation, and test CSVs under `data/processed/` (see NEXT_STEPS.md §1).
+Prepare labeled data for training: validate `text` / `label` columns and write
+train, validation, and test CSVs under `data/processed/`.
 """
 from __future__ import annotations
 

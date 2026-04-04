@@ -2,8 +2,7 @@
 
 A hybrid ML/NLP system for detecting radical or extremist content in text using rule-based filtering and transformer classification.
 
-For full context and ethical use, see [CONTEXT.md](CONTEXT.md).
-For a phased completion checklist, see [COMMITS_1000_ROADMAP.md](COMMITS_1000_ROADMAP.md).
+Architecture, configuration, and ethics: [CONTEXT.md](CONTEXT.md).
 
 ## Quick Start
 

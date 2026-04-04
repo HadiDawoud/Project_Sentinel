@@ -27,7 +27,13 @@ class RadicalClassifier:
         }
 
     def _load_model(self, checkpoint_path: Optional[str] = None) -> None:
+        valid_checkpoint = False
         if checkpoint_path and Path(checkpoint_path).exists():
+            # Check if directory is not empty (at least config.json should be there)
+            if any(Path(checkpoint_path).iterdir()):
+                valid_checkpoint = True
+        
+        if valid_checkpoint:
             self.model = AutoModelForSequenceClassification.from_pretrained(
                 checkpoint_path,
                 num_labels=self.num_labels

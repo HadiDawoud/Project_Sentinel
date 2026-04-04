@@ -29,9 +29,9 @@ pipeline:
   enable_rule_engine: true
   enable_ml: true
   fusion_method: weighted_average
-  # LRU cache for identical classify() inputs; 0 disables (NEXT_STEPS §7)
+  # LRU max keys for identical classify() inputs; 0 disables caching.
   classify_cache_size: 0
-  # Wall-clock latency in responses for profiling; default off
+  # Include wall-clock latency (ms) on classify output when true.
   include_latency_ms: false
 
 logging:
