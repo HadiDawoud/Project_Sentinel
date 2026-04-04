@@ -15,9 +15,12 @@ limiter = Limiter(key_func=get_remote_address)
 app = FastAPI(
     title="Project Sentinel API",
     description=(
-        "Hybrid rule-based keyword/pattern matching plus DistilBERT classification. "
-        "Use interactive docs at `/docs` (Swagger UI) or `/redoc`. "
-        "If env `SENTINEL_API_KEY` is set, classification endpoints require header `X-API-Key`."
+        "Hybrid rule-based keyword/pattern matching plus DistilBERT classification for radicalization detection.\n\n"
+        "### IMPORTANT: Responsible AI Usage\n"
+        "- **Assistive, Not Authoritative**: This tool is designed to assist human moderators. It should NOT be used for automated decision-making without human oversight.\n"
+        "- **Bias & Fairness**: Automated detection can exhibit bias. High-risk religious, political, and identity-related terms may trigger false positives.\n"
+        "- **Human Review**: Results flagged with `requires_human_review: true` MUST be reviewed by a human expert.\n"
+        "- **Context Matters**: This system has limited understanding of cultural and linguistic context. Review reasoning and flagged terms carefully."
     ),
     version="0.1.0",
     openapi_tags=[
@@ -61,6 +64,8 @@ class ClassificationResult(BaseModel):
     confidence: float
     risk_score: int
     flagged_terms: List[str]
+    requires_human_review: bool
+    bias_metadata: Optional[dict] = None
     reasoning: str
     latency_ms: Optional[float] = None
 
