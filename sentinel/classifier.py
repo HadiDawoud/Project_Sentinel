@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from pathlib import Path
 
@@ -48,7 +48,7 @@ class RadicalClassifier:
         self.model.to(self.device)
         self.model.eval()
 
-    def predict(self, text: str) -> Dict[str, any]:
+    def predict(self, text: str) -> Dict[str, Any]:
         inputs = self.tokenizer(
             text,
             return_tensors="pt",
@@ -76,7 +76,7 @@ class RadicalClassifier:
             }
         }
 
-    def predict_batch(self, texts: List[str]) -> List[Dict[str, any]]:
+    def predict_batch(self, texts: List[str]) -> List[Dict[str, Any]]:
         inputs = self.tokenizer(
             texts,
             return_tensors="pt",

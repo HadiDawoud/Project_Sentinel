@@ -1,6 +1,6 @@
 import logging
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -40,7 +40,7 @@ class StructuredLogger:
 
     def log_classification(self, text: str, result: dict):
         entry = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "text_length": len(text),
             "label": result.get("label"),
             "risk_score": result.get("risk_score"),
