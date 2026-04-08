@@ -6,11 +6,17 @@ train, validation, and test CSVs under `data/processed/`.
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
 
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
+from scripts.dataset_io import load_labeled_csv, normalize_labeled_frame
 
 REQUIRED_COLUMNS = ("text", "label")
 
@@ -18,20 +24,32 @@ REQUIRED_COLUMNS = ("text", "label")
 def validate_frame(df: pd.DataFrame, num_labels: int = 4) -> None:
     missing = [c for c in REQUIRED_COLUMNS if c not in df.columns]
     if missing:
-        raise ValueError(f"CSV must contain columns {list(REQUIRED_COLUMNS)}; missing: {missing}")
+        raise ValueError(
+            f"CSV must contain columns {list(REQUIRED_COLUMNS)}; missing: {missing}. "
+            f"Found columns: {list(df.columns)}"
+        )
     if df["text"].isna().any():
-        raise ValueError("Column 'text' contains null values; drop or fill them before splitting.")
+        bad_idx = df.index[df["text"].isna()].tolist()[:15]
+        raise ValueError(
+            f"Column 'text' contains null values (row indices, first 15): {bad_idx}"
+        )
     if df["label"].isna().any():
-        raise ValueError("Column 'label' contains null values; drop or fill them before splitting.")
+        bad_idx = df.index[df["label"].isna()].tolist()[:15]
+        raise ValueError(
+            f"Column 'label' contains null values (row indices, first 15): {bad_idx}"
+        )
     try:
         labels = df["label"].astype(int)
     except (ValueError, TypeError) as e:
-        raise ValueError("Column 'label' must be integer class indices.") from e
+        raise ValueError(
+            "Column 'label' must be integer class indices (e.g. 0, 1, 2). "
+            "Fix floats-as-strings or non-numeric values in that column."
+        ) from e
     invalid = labels[(labels < 0) | (labels >= num_labels)]
     if len(invalid) > 0:
         raise ValueError(
-            f"Labels must be in [0, {num_labels - 1}]; found invalid values: "
-            f"{sorted(invalid.unique().tolist())}"
+            f"Labels must be in [0, {num_labels - 1}] for --num-labels={num_labels}; "
+            f"invalid values: {sorted(invalid.unique().tolist())}"
         )
 
 
@@ -82,15 +100,51 @@ def main() -> None:
     parser.add_argument("--test", type=float, default=0.15, help="Test fraction (default 0.15)")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for splitting")
     parser.add_argument("--num-labels", type=int, default=4, help="Number of classes (default 4)")
+    parser.add_argument(
+        "--drop-empty-text",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Drop rows whose text is empty after strip (default: true)",
+    )
+    parser.add_argument(
+        "--max-text-chars",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Truncate text to N characters after strip (optional)",
+    )
     parser.add_argument("--remove-duplicates", action="store_true", help="Remove duplicate texts")
     args = parser.parse_args()
 
-    df = pd.read_csv(args.input_csv)
+    try:
+        df = load_labeled_csv(args.input_csv)
+    except UnicodeDecodeError as e:
+        raise SystemExit(
+            f"Failed to read {args.input_csv} as UTF-8 (strict). "
+            "Re-encode the file as UTF-8 or fix invalid bytes."
+        ) from e
+
     validate_frame(df, num_labels=args.num_labels)
+
+    df, norm_stats = normalize_labeled_frame(
+        df,
+        drop_empty_text=args.drop_empty_text,
+        max_text_chars=args.max_text_chars,
+    )
+    if norm_stats["dropped_empty"]:
+        print(f"Dropped {norm_stats['dropped_empty']} row(s) with empty text after strip")
+    if norm_stats["truncated_rows"]:
+        print(
+            f"Truncated text in {norm_stats['truncated_rows']} row(s) "
+            f"to --max-text-chars={args.max_text_chars}"
+        )
+
+    if len(df) == 0:
+        raise SystemExit("No rows left after filtering; nothing to split.")
 
     if args.remove_duplicates:
         before = len(df)
-        df = df.drop_duplicates(subset=['text'])
+        df = df.drop_duplicates(subset=["text"])
         print(f"Removed {before - len(df)} duplicate texts")
 
     train_df, val_df, test_df = stratified_split(

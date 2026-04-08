@@ -15,10 +15,16 @@ This project expects **labeled CSV** data for training and evaluation. Raw corpo
 
 Training scripts expect a header row with at least:
 
-- **`text`** — UTF-8 string, one sample per row (no nulls).
+- **`text`** — UTF-8 string, one sample per row (no nulls). Files may include a UTF-8 BOM; readers strip it automatically.
 - **`label`** — Integer class index. Default project labels: `0` … `3` (four classes). See `README.md` / `CONTEXT.md` for label meanings.
 
 Optional columns may be present for your own tooling; split scripts only require `text` and `label`.
+
+### Ingest options (`prepare_dataset.py` / `split_data.py`)
+
+- **`--drop-empty-text` / `--no-drop-empty-text`** — By default, rows whose `text` is empty after trimming whitespace are **dropped** (count printed). Use `--no-drop-empty-text` to **fail** instead if any blank lines exist.
+- **`--max-text-chars N`** — Optionally truncate `text` to `N` characters after strip (number of truncated rows is printed).
+- Non-UTF-8 bytes cause a **clear error** (strict decode); re-encode the source file as UTF-8.
 
 ## Workflow
 

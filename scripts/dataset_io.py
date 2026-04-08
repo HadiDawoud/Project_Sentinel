@@ -28,26 +28,20 @@ def normalize_labeled_frame(
     """
     Strip whitespace on `text`, optionally drop blank rows, optionally truncate.
 
-    Returns (frame, stats) where stats has dropped_empty, truncated_rows, max_chars.
+    Call after required columns exist and null checks on `text` / `label` pass.
+
+    Returns (frame, stats) with keys dropped_empty, truncated_rows, max_chars.
     """
-    if "text" not in df.columns:
-        return df, {"dropped_empty": 0, "truncated_rows": 0, "max_chars": max_text_chars}
-
-    stats = {"dropped_empty": 0, "truncated_rows": 0, "max_chars": max_text_chars}
+    stats: dict = {"dropped_empty": 0, "truncated_rows": 0, "max_chars": max_text_chars}
     out = df.copy()
+    out["text"] = out["text"].astype(str).str.strip()
 
-    if out["text"].isna().any():
-        # Keep validate_frame as source of truth for explicit nulls
-        pass
-    else:
-        out["text"] = out["text"].astype(str).str.strip()
-
-    blank = out["text"].isna() | (out["text"].str.len() == 0)
+    blank = out["text"].str.len() == 0
     if blank.any() and not drop_empty_text:
-        rows = blank[blank].index.tolist()[:10]
+        rows = out.index[blank].tolist()[:10]
         raise ValueError(
             "Column 'text' has empty or whitespace-only values after strip "
-            f"(row indices, first 10): {rows}. Use --drop-empty-text or fix the source CSV."
+            f"(row indices, first 10): {rows}. Use --drop-empty-text (default) or fix the CSV."
         )
 
     if drop_empty_text and blank.any():
