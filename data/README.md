@@ -39,6 +39,8 @@ Stratified splitting needs **enough rows per class** in each fold (roughly on th
 
 3. Train with `models/train.py` pointing at `data/processed/train.csv` and `val.csv`.
 
+Each successful run of `prepare_dataset.py` or `split_data.py` also writes **`split_manifest.json`** next to the CSVs (unless you pass `--no-manifest`). It records UTC time, resolved source path, **SHA-256** and byte size of the **raw** input file, split options (fractions, seed, flags), row counts at each stage, and label histograms for the pre-split frame and for train/val/test. Use it to tie a model run back to an exact file snapshot and split configuration.
+
 `scripts/split_data.py` is a lighter alternative if you already validated the CSV elsewhere.
 
 ## Ethics and safety

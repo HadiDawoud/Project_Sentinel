@@ -11,6 +11,7 @@ from sklearn.model_selection import train_test_split
 
 from scripts.dataset_io import load_labeled_csv, normalize_labeled_frame
 from scripts.prepare_dataset import validate_frame
+from scripts.split_manifest import build_manifest, sha256_and_size, write_manifest
 
 
 def split_data(
@@ -24,7 +25,11 @@ def split_data(
     num_labels: int = 4,
     drop_empty_text: bool = True,
     max_text_chars: int | None = None,
+    write_manifest_file: bool = True,
 ):
+    source_resolved = Path(input_file).resolve()
+    source_sha256, source_size_bytes = sha256_and_size(source_resolved)
+
     try:
         df = load_labeled_csv(input_file)
     except UnicodeDecodeError as e:
@@ -32,6 +37,7 @@ def split_data(
             f"Failed to read {input_file} as UTF-8 (strict). Re-encode as UTF-8 or fix invalid bytes."
         ) from e
 
+    rows_loaded = len(df)
     validate_frame(df, num_labels=num_labels)
     df, norm_stats = normalize_labeled_frame(
         df,
@@ -48,6 +54,9 @@ def split_data(
 
     if len(df) == 0:
         raise ValueError("No rows left after filtering; nothing to split.")
+
+    rows_after_normalize = len(df)
+    df_before_split = df.copy()
 
     train_df, temp_df = train_test_split(
         df,
@@ -70,6 +79,35 @@ def split_data(
     train_df.to_csv(output_path / "train.csv", index=False)
     val_df.to_csv(output_path / "val.csv", index=False)
     test_df.to_csv(output_path / "test.csv", index=False)
+
+    if write_manifest_file:
+        manifest = build_manifest(
+            tool="split_data",
+            source_resolved=source_resolved,
+            source_sha256=source_sha256,
+            source_size_bytes=source_size_bytes,
+            options={
+                "train": train_ratio,
+                "val": val_ratio,
+                "test": test_ratio,
+                "seed": random_seed,
+                "num_labels": num_labels,
+                "drop_empty_text": drop_empty_text,
+                "max_text_chars": max_text_chars,
+                "remove_duplicates": False,
+            },
+            rows_loaded=rows_loaded,
+            norm_stats=norm_stats,
+            rows_after_normalize=rows_after_normalize,
+            rows_after_dedupe=len(df_before_split),
+            duplicates_removed=0,
+            train_df=train_df,
+            val_df=val_df,
+            test_df=test_df,
+            df_before_split=df_before_split,
+        )
+        mp = write_manifest(output_path, manifest)
+        print(f"Wrote manifest {mp}")
 
     print("Split complete:")
     print(f"  Train: {len(train_df)} samples ({train_ratio:.0%})")
@@ -101,6 +139,11 @@ if __name__ == "__main__":
         metavar="N",
         help="Truncate text to N characters after strip (optional)",
     )
+    parser.add_argument(
+        "--no-manifest",
+        action="store_true",
+        help="Do not write split_manifest.json next to the output CSVs",
+    )
     args = parser.parse_args()
 
     split_data(
@@ -113,4 +156,5 @@ if __name__ == "__main__":
         num_labels=args.num_labels,
         drop_empty_text=args.drop_empty_text,
         max_text_chars=args.max_text_chars,
+        write_manifest_file=not args.no_manifest,
     )

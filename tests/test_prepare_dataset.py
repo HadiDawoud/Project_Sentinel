@@ -1,3 +1,5 @@
+import hashlib
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -7,6 +9,7 @@ import pytest
 
 from scripts.dataset_io import load_labeled_csv, normalize_labeled_frame
 from scripts.prepare_dataset import stratified_split, validate_frame
+from scripts.split_manifest import MANIFEST_FILENAME
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -105,6 +108,39 @@ def test_cli_writes_three_files(tmp_path):
     assert (out / "train.csv").exists()
     assert (out / "val.csv").exists()
     assert (out / "test.csv").exists()
+    mf = out / MANIFEST_FILENAME
+    assert mf.exists()
+    manifest = json.loads(mf.read_text(encoding="utf-8"))
+    assert manifest["schema_version"] == "1.0"
+    assert manifest["tool"] == "prepare_dataset"
+    assert manifest["source"]["sha256"] == hashlib.sha256(inp.read_bytes()).hexdigest()
+    assert manifest["rows"]["train"] + manifest["rows"]["val"] + manifest["rows"]["test"] == 100
+    assert sum(manifest["label_counts"]["before_split"].values()) == 100
+
+
+def test_cli_no_manifest(tmp_path):
+    inp = tmp_path / "in.csv"
+    rows = []
+    for lab in range(4):
+        for _ in range(8):
+            rows.append({"text": f"doc {lab}", "label": lab})
+    pd.DataFrame(rows).to_csv(inp, index=False)
+    out = tmp_path / "out"
+    r = subprocess.run(
+        [
+            sys.executable,
+            str(PROJECT_ROOT / "scripts" / "prepare_dataset.py"),
+            str(inp),
+            "-o",
+            str(out),
+            "--no-manifest",
+        ],
+        cwd=str(PROJECT_ROOT),
+        capture_output=True,
+        text=True,
+    )
+    assert r.returncode == 0, r.stderr
+    assert not (out / MANIFEST_FILENAME).exists()
 
 
 def test_cli_rejects_non_utf8(tmp_path):

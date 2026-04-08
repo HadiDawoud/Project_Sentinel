@@ -17,6 +17,7 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 
 from scripts.dataset_io import load_labeled_csv, normalize_labeled_frame
+from scripts.split_manifest import build_manifest, sha256_and_size, write_manifest
 
 REQUIRED_COLUMNS = ("text", "label")
 
@@ -114,7 +115,18 @@ def main() -> None:
         help="Truncate text to N characters after strip (optional)",
     )
     parser.add_argument("--remove-duplicates", action="store_true", help="Remove duplicate texts")
+    parser.add_argument(
+        "--no-manifest",
+        action="store_true",
+        help="Do not write split_manifest.json next to the output CSVs",
+    )
     args = parser.parse_args()
+
+    source_resolved = args.input_csv.resolve()
+    try:
+        source_sha256, source_size_bytes = sha256_and_size(source_resolved)
+    except OSError as e:
+        raise SystemExit(f"Cannot read source file {source_resolved}: {e}") from e
 
     try:
         df = load_labeled_csv(args.input_csv)
@@ -124,6 +136,7 @@ def main() -> None:
             "Re-encode the file as UTF-8 or fix invalid bytes."
         ) from e
 
+    rows_loaded = len(df)
     validate_frame(df, num_labels=args.num_labels)
 
     df, norm_stats = normalize_labeled_frame(
@@ -142,11 +155,15 @@ def main() -> None:
     if len(df) == 0:
         raise SystemExit("No rows left after filtering; nothing to split.")
 
+    rows_after_normalize = len(df)
+    duplicates_removed = 0
     if args.remove_duplicates:
         before = len(df)
         df = df.drop_duplicates(subset=["text"])
-        print(f"Removed {before - len(df)} duplicate texts")
+        duplicates_removed = before - len(df)
+        print(f"Removed {duplicates_removed} duplicate texts")
 
+    df_before_split = df.copy()
     train_df, val_df, test_df = stratified_split(
         df, args.train, args.val, args.test, args.seed
     )
@@ -155,6 +172,35 @@ def main() -> None:
     train_df.to_csv(args.output_dir / "train.csv", index=False)
     val_df.to_csv(args.output_dir / "val.csv", index=False)
     test_df.to_csv(args.output_dir / "test.csv", index=False)
+
+    if not args.no_manifest:
+        manifest = build_manifest(
+            tool="prepare_dataset",
+            source_resolved=source_resolved,
+            source_sha256=source_sha256,
+            source_size_bytes=source_size_bytes,
+            options={
+                "train": args.train,
+                "val": args.val,
+                "test": args.test,
+                "seed": args.seed,
+                "num_labels": args.num_labels,
+                "drop_empty_text": args.drop_empty_text,
+                "max_text_chars": args.max_text_chars,
+                "remove_duplicates": args.remove_duplicates,
+            },
+            rows_loaded=rows_loaded,
+            norm_stats=norm_stats,
+            rows_after_normalize=rows_after_normalize,
+            rows_after_dedupe=len(df_before_split),
+            duplicates_removed=duplicates_removed,
+            train_df=train_df,
+            val_df=val_df,
+            test_df=test_df,
+            df_before_split=df_before_split,
+        )
+        mp = write_manifest(args.output_dir, manifest)
+        print(f"Wrote manifest {mp}")
 
     print(
         f"Wrote {len(train_df)} train, {len(val_df)} val, {len(test_df)} test rows to {args.output_dir}"
