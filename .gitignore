@@ -28,9 +28,11 @@ logs/
 models/checkpoints/
 models/logs/
 
-# Data
-data/raw/
-data/processed/
+# Data (contents ignored; READMEs document layout)
+data/raw/*
+!data/raw/README.md
+data/processed/*
+!data/processed/README.md
 
 # Environment
 .env
