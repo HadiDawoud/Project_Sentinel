@@ -1,10 +1,15 @@
 import torch
 import numpy as np
+import signal
+import platform
 from typing import Any, Dict, List, Optional
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from pathlib import Path
 
 from .constants import LABEL_MAP, DEFAULT_MAX_LENGTH
+
+class TimeoutError(Exception):
+    pass
 
 
 class RadicalClassifier:
@@ -79,8 +84,22 @@ class RadicalClassifier:
     def is_loaded(self) -> bool:
         return self._is_loaded
 
-    def predict(self, text: str) -> Dict[str, Any]:
+    def predict(self, text: str, timeout: Optional[float] = None) -> Dict[str, Any]:
         self._ensure_model_loaded()
+        if timeout and platform.system() != 'Windows':
+            def timeout_handler(signum, frame):
+                raise TimeoutError(f"Prediction timed out after {timeout}s")
+            old_handler = signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(int(timeout))
+            try:
+                return self._predict_impl(text)
+            finally:
+                signal.alarm(0)
+                signal.signal(signal.SIGALRM, old_handler)
+        else:
+            return self._predict_impl(text)
+    
+    def _predict_impl(self, text: str) -> Dict[str, Any]:
         inputs = self.tokenizer(
             text,
             return_tensors="pt",
