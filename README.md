@@ -1,5 +1,9 @@
 # Project Sentinel
 
+[![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/)
+[![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-red.svg)](https://pytorch.org/)
+[![Hugging Face](https://img.shields.io/badge/Transformers-DistilBERT-orange.svg)](https://huggingface.co/)
+
 A hybrid ML/NLP system for detecting radical or extremist content in text using rule-based filtering and transformer classification.
 
 Architecture, configuration, and ethics: [CONTEXT.md](CONTEXT.md).
