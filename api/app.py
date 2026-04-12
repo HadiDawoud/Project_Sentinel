@@ -12,8 +12,14 @@ from slowapi.util import get_remote_address
 
 from sentinel.pipeline import SentinelPipeline
 from sentinel.constants import MAX_INPUT_LENGTH
+from sentinel.logger import get_logger, StructuredLogger
 
-logger = logging.getLogger("sentinel.api")
+logger: StructuredLogger = get_logger(
+    name="sentinel.api",
+    log_file="logs/api.log",
+    audit_file="logs/api_audit.log",
+    level="INFO"
+)
 
 limiter = Limiter(key_func=get_remote_address)
 
