@@ -24,20 +24,10 @@ class SentinelPipeline:
             rules_path=self.config['rule_engine']['data_path']
         )
         pipe_cfg = self.config.get('pipeline', {})
-        lazy_load = bool(pipe_cfg.get('lazy_load_model', False))
-        self.classifier = RadicalClassifier(
-            model_name=self.config['model']['name'],
-            num_labels=self.config['model']['num_labels'],
-            checkpoint_path=self.config['model'].get('checkpoint_path'),
-            lazy_load=lazy_load
-        )
-        self.fusion = ScoreFusion(
-            rule_weight=self.config['rule_engine']['weights'].get('high_risk', 0.3),
-            ml_weight=0.7,
-            amplification_factor=self.config['rule_engine'].get('amplification_factor', 1.5)
-        )
         self._classify_cache_max = max(0, int(pipe_cfg.get('classify_cache_size', 0)))
         self._include_latency_ms = bool(pipe_cfg.get('include_latency_ms', False))
+        self._batch_max_workers = int(pipe_cfg.get('batch_max_workers', 4))
+        self._batch_chunk_size = int(pipe_cfg.get('batch_chunk_size', 8))
         self._classify_cache: OrderedDict[str, Dict] = OrderedDict()
         self._cache_hits = 0
         self._cache_misses = 0
@@ -213,7 +203,8 @@ class SentinelPipeline:
         from concurrent.futures import ThreadPoolExecutor
         outputs: List[Dict] = []
         
-        with ThreadPoolExecutor(max_workers=4) as executor:
+        max_workers = min(self._batch_max_workers, len(texts))
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
             results = list(executor.map(
                 lambda args: self.classify(args[0], request_id=args[1]),
                 [(text, f"{request_id}_{i}") for i, text in enumerate(texts)]
@@ -221,6 +212,46 @@ class SentinelPipeline:
             outputs = results
         
         return outputs
+
+    def classify_batch_chunked(self, texts: List[str], request_id: Optional[str] = None) -> List[Dict]:
+        if not texts:
+            return []
+        
+        if request_id is None:
+            request_id = str(uuid.uuid4())
+        
+        total = len(texts)
+        outputs: List[Dict] = []
+        
+        for start in range(0, total, self._batch_chunk_size):
+            end = min(start + self._batch_chunk_size, total)
+            chunk = texts[start:end]
+            chunk_request_id = f"{request_id}_chunk_{start // self._batch_chunk_size}"
+            chunk_results = self._classify_batch_parallel(chunk, chunk_request_id)
+            outputs.extend(chunk_results)
+        
+        return outputs
+
+    async def classify_batch_async(self, texts: List[str], request_id: Optional[str] = None) -> List[Dict]:
+        import asyncio
+        from concurrent.futures import ThreadPoolExecutor
+        
+        if not texts:
+            return []
+        
+        if request_id is None:
+            request_id = str(uuid.uuid4())
+        
+        loop = asyncio.get_event_loop()
+        
+        async def run_in_executor():
+            executor = ThreadPoolExecutor(max_workers=self._batch_max_workers)
+            return await loop.run_in_executor(
+                executor,
+                lambda: self._classify_batch_sequential(texts, request_id)
+            )
+        
+        return await run_in_executor()
 
     ALLOWED_EXTENSIONS = {'.json', '.jsonl', '.txt'}
     ALLOWED_INPUT_DIRS = {'data/raw', 'data/processed', 'data/uploads'}

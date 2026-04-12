@@ -33,6 +33,12 @@ pipeline:
   classify_cache_size: 0
   # Include wall-clock latency (ms) on classify output when true.
   include_latency_ms: false
+  # Lazy load ML model on first use instead of at startup.
+  lazy_load_model: false
+  # Max workers for parallel batch processing.
+  batch_max_workers: 4
+  # Chunk size for chunked batch processing.
+  batch_chunk_size: 8
 
 logging:
   level: INFO
