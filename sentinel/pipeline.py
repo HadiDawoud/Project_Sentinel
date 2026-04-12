@@ -76,7 +76,10 @@ class SentinelPipeline:
             h.setFormatter(logging.Formatter('%(message)s'))
             self._audit_logger.addHandler(h)
 
-    def classify(self, text: str, return_raw: bool = False) -> Dict:
+    def classify(self, text: str, return_raw: bool = False, request_id: Optional[str] = None) -> Dict:
+        if request_id is None:
+            request_id = str(uuid.uuid4())
+
         if (
             self._classify_cache_max > 0
             and not return_raw
@@ -91,10 +94,11 @@ class SentinelPipeline:
                 'timestamp': datetime.now().isoformat(),
                 'input': text,
                 'audit_id': str(uuid.uuid4()),
+                'request_id': request_id,
             }
             if self._include_latency_ms:
                 output['latency_ms'] = round((time.perf_counter() - t0) * 1000, 2)
-            self._log_result(output)
+            self._log_result(output, request_id)
             return output
         else:
             self._cache_misses += 1
@@ -110,6 +114,7 @@ class SentinelPipeline:
         output = {
             'timestamp': datetime.now().isoformat(),
             'audit_id': str(uuid.uuid4()),
+            'request_id': request_id,
             'input': text,
             'label': fused_result['label'],
             'confidence': fused_result['confidence'],
@@ -130,13 +135,13 @@ class SentinelPipeline:
                 'ml_result': ml_result,
             }
 
-        self._log_result(output)
+        self._log_result(output, request_id)
 
         if self._classify_cache_max > 0 and not return_raw:
             stored = {
                 k: v
                 for k, v in output.items()
-                if k not in ('timestamp', 'audit_id', 'latency_ms')
+                if k not in ('timestamp', 'audit_id', 'latency_ms', 'request_id')
             }
             self._classify_cache[text] = stored
             self._classify_cache.move_to_end(text)
@@ -145,16 +150,19 @@ class SentinelPipeline:
 
         return output
 
-    def classify_batch(self, texts: List[str], parallel: bool = False) -> List[Dict]:
+    def classify_batch(self, texts: List[str], parallel: bool = False, request_id: Optional[str] = None) -> List[Dict]:
         if not texts:
             return []
 
-        if parallel:
-            return self._classify_batch_parallel(texts)
-        
-        return self._classify_batch_sequential(texts)
+        if request_id is None:
+            request_id = str(uuid.uuid4())
 
-    def _classify_batch_sequential(self, texts: List[str]) -> List[Dict]:
+        if parallel:
+            return self._classify_batch_parallel(texts, request_id)
+        
+        return self._classify_batch_sequential(texts, request_id)
+
+    def _classify_batch_sequential(self, texts: List[str], request_id: str) -> List[Dict]:
         total = len(texts)
         t0 = time.perf_counter()
         preprocessed = [self.preprocessor.preprocess(t) for t in texts]
@@ -175,6 +183,7 @@ class SentinelPipeline:
             output = {
                 'timestamp': datetime.now().isoformat(),
                 'audit_id': str(uuid.uuid4()),
+                'request_id': f"{request_id}_{i}",
                 'input': text,
                 'label': fused_result['label'],
                 'confidence': fused_result['confidence'],
@@ -187,20 +196,22 @@ class SentinelPipeline:
             }
             if per_item_ms is not None:
                 output['latency_ms'] = per_item_ms
-            self._log_result(output)
+            self._log_result(output, request_id)
             outputs.append(output)
 
         if total > 10:
             print(f"\rProcessing: 100% ({total}/{total})", file=sys.stderr)
         return outputs
 
-    def _classify_batch_parallel(self, texts: List[str]) -> List[Dict]:
+    def _classify_batch_parallel(self, texts: List[str], request_id: str) -> List[Dict]:
         from concurrent.futures import ThreadPoolExecutor
-        total = len(texts)
         outputs: List[Dict] = []
         
         with ThreadPoolExecutor(max_workers=4) as executor:
-            results = list(executor.map(self.classify, texts))
+            results = list(executor.map(
+                lambda args: self.classify(args[0], request_id=args[1]),
+                [(text, f"{request_id}_{i}") for i, text in enumerate(texts)]
+            ))
             outputs = results
         
         return outputs
@@ -244,9 +255,17 @@ class SentinelPipeline:
             'hit_rate': round(self._cache_hits / max(1, self._cache_hits + self._cache_misses), 3),
         }
 
-    def _log_result(self, result: Dict) -> None:
+    def _log_result(self, result: Dict, request_id: Optional[str] = None) -> None:
+        if request_id:
+            result['request_id'] = request_id
+        
         if self.log_console and self._audit_logger.handlers:
-            line = json.dumps({'event': 'classification', 'result': result}, default=str)
+            log_entry = {
+                'event': 'classification',
+                'request_id': request_id,
+                'result': result
+            }
+            line = json.dumps(log_entry, default=str)
             self._audit_logger.info(line)
         if self.log_file:
             try:
@@ -261,6 +280,7 @@ class SentinelPipeline:
                 with open(self.audit_file, 'a') as f:
                     audit_entry = {
                         'timestamp': result.get('timestamp'),
+                        'request_id': request_id,
                         'audit_id': result.get('audit_id'),
                         'label': result.get('label'),
                         'risk_score': result.get('risk_score'),

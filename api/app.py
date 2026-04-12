@@ -147,8 +147,7 @@ async def classify(
 ):
     request_id = str(uuid.uuid4())
     try:
-        result = pipeline.classify(input_data.text, return_raw=input_data.return_raw)
-        result['request_id'] = request_id
+        result = pipeline.classify(input_data.text, return_raw=input_data.return_raw, request_id=request_id)
         return result
     except ValueError as e:
         logger.warning(f"Validation error in /classify [request_id={request_id}]: {e}")
@@ -167,7 +166,7 @@ async def classify_batch(
 ):
     request_id = str(uuid.uuid4())
     try:
-        results = pipeline.classify_batch(input_data.texts)
+        results = pipeline.classify_batch(input_data.texts, request_id=request_id)
         return {"results": results, "request_id": request_id, "count": len(results)}
     except ValueError as e:
         logger.warning(f"Validation error in /classify/batch [request_id={request_id}]: {e}")
