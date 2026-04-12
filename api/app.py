@@ -2,13 +2,14 @@ import os
 import secrets
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 from sentinel.pipeline import SentinelPipeline
+from sentinel.constants import MAX_INPUT_LENGTH
 
 limiter = Limiter(key_func=get_remote_address)
 
@@ -50,12 +51,32 @@ def _optional_api_key_auth(
 
 
 class TextInput(BaseModel):
-    text: str
+    text: str = Field(
+        ...,
+        min_length=1,
+        max_length=MAX_INPUT_LENGTH,
+        description="Text to classify (1-10000 characters)"
+    )
     return_raw: bool = False
 
 
 class BatchInput(BaseModel):
-    texts: List[str]
+    texts: List[str] = Field(
+        ...,
+        min_length=1,
+        max_length=100,
+        description="List of texts to classify (max 100 items)"
+    )
+
+    @field_validator('texts')
+    @classmethod
+    def validate_text_lengths(cls, v):
+        for i, text in enumerate(v):
+            if len(text) > MAX_INPUT_LENGTH:
+                raise ValueError(f"Text at index {i} exceeds max length of {MAX_INPUT_LENGTH} characters")
+            if len(text.strip()) == 0:
+                raise ValueError(f"Text at index {i} is empty or whitespace only")
+        return v
 
 
 class ClassificationResult(BaseModel):
