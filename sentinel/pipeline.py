@@ -23,23 +23,29 @@ class SentinelPipeline:
         self.rule_engine = RuleEngine(
             rules_path=self.config['rule_engine']['data_path']
         )
+        pipe_cfg = self.config.get('pipeline', {})
+        lazy_load = bool(pipe_cfg.get('lazy_load_model', False))
         self.classifier = RadicalClassifier(
             model_name=self.config['model']['name'],
             num_labels=self.config['model']['num_labels'],
-            checkpoint_path=self.config['model'].get('checkpoint_path')
+            checkpoint_path=self.config['model'].get('checkpoint_path'),
+            lazy_load=lazy_load
         )
         self.fusion = ScoreFusion(
             rule_weight=self.config['rule_engine']['weights'].get('high_risk', 0.3),
             ml_weight=0.7,
             amplification_factor=self.config['rule_engine'].get('amplification_factor', 1.5)
         )
-        pipe_cfg = self.config.get('pipeline', {})
         self._classify_cache_max = max(0, int(pipe_cfg.get('classify_cache_size', 0)))
         self._include_latency_ms = bool(pipe_cfg.get('include_latency_ms', False))
         self._classify_cache: OrderedDict[str, Dict] = OrderedDict()
         self._cache_hits = 0
         self._cache_misses = 0
         self._setup_logging()
+
+    def warmup(self, num_inferences: int = 3) -> Dict:
+        self.classifier.warmup(num_inferences)
+        return {"status": "warmup_complete", "model_loaded": self.classifier.is_loaded}
 
     def _load_config(self, config_path: str) -> Dict:
         path = Path(config_path)

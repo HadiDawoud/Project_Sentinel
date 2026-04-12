@@ -212,6 +212,15 @@ async def latency_info():
     }
 
 
+@app.post("/warmup", tags=["meta"], summary="Warm up the ML model")
+async def warmup():
+    result = pipeline.warmup()
+    return {
+        **result,
+        "model_loaded": pipeline.classifier.is_loaded
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

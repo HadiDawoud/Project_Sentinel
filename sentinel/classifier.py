@@ -12,25 +12,34 @@ class RadicalClassifier:
         self,
         model_name: str = "distilbert-base-uncased",
         num_labels: int = 4,
-        checkpoint_path: Optional[str] = None
+        checkpoint_path: Optional[str] = None,
+        lazy_load: bool = False
     ):
         self.model_name = model_name
         self.num_labels = num_labels
+        self.checkpoint_path = checkpoint_path
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.tokenizer = None
         self.model = None
-        self._load_model(checkpoint_path)
+        self._is_loaded = False
+        if not lazy_load:
+            self._ensure_model_loaded()
 
-    def _load_model(self, checkpoint_path: Optional[str] = None) -> None:
+    def _ensure_model_loaded(self) -> None:
+        if self._is_loaded:
+            return
+        self._load_model()
+        self._is_loaded = True
+
+    def _load_model(self) -> None:
         valid_checkpoint = False
-        if checkpoint_path and Path(checkpoint_path).exists():
-            # Check if directory is not empty (at least config.json should be there)
-            if any(Path(checkpoint_path).iterdir()):
+        if self.checkpoint_path and Path(self.checkpoint_path).exists():
+            if any(Path(self.checkpoint_path).iterdir()):
                 valid_checkpoint = True
         
         if valid_checkpoint:
             self.model = AutoModelForSequenceClassification.from_pretrained(
-                checkpoint_path,
+                self.checkpoint_path,
                 num_labels=self.num_labels
             )
         else:
@@ -43,12 +52,40 @@ class RadicalClassifier:
         self.model.to(self.device)
         self.model.eval()
 
-    def predict(self, text: str) -> Dict[str, Any]:
+    def warmup(self, num_inferences: int = 3) -> None:
+        self._ensure_model_loaded()
+        warmup_texts = [
+            "This is a normal conversation about everyday topics.",
+            "We should discuss the importance of community safety.",
+            "Sharing knowledge about historical events and cultures."
+        ]
+        for _ in range(num_inferences):
+            for text in warmup_texts:
+                self._dummy_inference(text)
+
+    def _dummy_inference(self, text: str) -> None:
         inputs = self.tokenizer(
             text,
             return_tensors="pt",
             truncation=True,
-            max_length=256,
+            max_length=DEFAULT_MAX_LENGTH,
+            padding=True
+        )
+        inputs = {k: v.to(self.device) for k, v in inputs.items()}
+        with torch.no_grad():
+            _ = self.model(**inputs)
+
+    @property
+    def is_loaded(self) -> bool:
+        return self._is_loaded
+
+    def predict(self, text: str) -> Dict[str, Any]:
+        self._ensure_model_loaded()
+        inputs = self.tokenizer(
+            text,
+            return_tensors="pt",
+            truncation=True,
+            max_length=DEFAULT_MAX_LENGTH,
             padding=True
         )
         inputs = {k: v.to(self.device) for k, v in inputs.items()}
@@ -72,11 +109,12 @@ class RadicalClassifier:
         }
 
     def predict_batch(self, texts: List[str]) -> List[Dict[str, Any]]:
+        self._ensure_model_loaded()
         inputs = self.tokenizer(
             texts,
             return_tensors="pt",
             truncation=True,
-            max_length=256,
+            max_length=DEFAULT_MAX_LENGTH,
             padding=True
         )
         inputs = {k: v.to(self.device) for k, v in inputs.items()}
@@ -105,11 +143,12 @@ class RadicalClassifier:
         return results
 
     def get_fine_grained_scores(self, text: str) -> Dict[int, float]:
+        self._ensure_model_loaded()
         inputs = self.tokenizer(
             text,
             return_tensors="pt",
             truncation=True,
-            max_length=256,
+            max_length=DEFAULT_MAX_LENGTH,
             padding=True
         )
         inputs = {k: v.to(self.device) for k, v in inputs.items()}
