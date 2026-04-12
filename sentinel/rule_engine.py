@@ -3,6 +3,8 @@ import yaml
 from typing import Dict, List, Optional
 from pathlib import Path
 
+__all__ = ['RuleEngine']
+
 
 class RuleEngine:
     def __init__(self, rules_path: str = "data/rules/keywords.yaml"):
