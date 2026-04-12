@@ -1,5 +1,6 @@
 from typing import Dict, List, Optional, Any
 from .fairness import FairnessEvaluator
+from .constants import LABEL_TUPLES, RISK_WEIGHTS, RISK_THRESHOLDS
 
 
 class ScoreFusion:
@@ -12,12 +13,6 @@ class ScoreFusion:
         self.rule_weight = rule_weight
         self.ml_weight = ml_weight
         self.amplification_factor = amplification_factor
-        self.labels = {
-            0: "Non-Radical",
-            1: "Mildly Radical",
-            2: "Moderately Radical",
-            3: "Highly Radical"
-        }
         self.fairness_evaluator = FairnessEvaluator()
 
     def fuse(
@@ -73,21 +68,15 @@ class ScoreFusion:
         }
 
     def _compute_ml_risk_score(self, ml_scores: Dict[str, float]) -> float:
-        weights = {
-            'Non-Radical': 0.0,
-            'Mildly Radical': 0.33,
-            'Moderately Radical': 0.66,
-            'Highly Radical': 1.0
-        }
         return sum(ml_scores.get(label, 0) * weight 
-                   for label, weight in weights.items())
+                   for label, weight in RISK_WEIGHTS.items())
 
     def _determine_label(self, risk_score: int) -> str:
-        if risk_score < 25:
+        if risk_score < RISK_THRESHOLDS["Mildly Radical"]:
             return "Non-Radical"
-        elif risk_score < 50:
+        elif risk_score < RISK_THRESHOLDS["Moderately Radical"]:
             return "Mildly Radical"
-        elif risk_score < 75:
+        elif risk_score < RISK_THRESHOLDS["Highly Radical"]:
             return "Moderately Radical"
         else:
             return "Highly Radical"

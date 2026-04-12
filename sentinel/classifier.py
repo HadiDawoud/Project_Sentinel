@@ -4,6 +4,8 @@ from typing import Any, Dict, List, Optional
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from pathlib import Path
 
+from .constants import LABEL_MAP, DEFAULT_MAX_LENGTH
+
 
 class RadicalClassifier:
     def __init__(
@@ -18,13 +20,6 @@ class RadicalClassifier:
         self.tokenizer = None
         self.model = None
         self._load_model(checkpoint_path)
-        
-        self.labels = {
-            0: "Non-Radical",
-            1: "Mildly Radical",
-            2: "Moderately Radical",
-            3: "Highly Radical"
-        }
 
     def _load_model(self, checkpoint_path: Optional[str] = None) -> None:
         valid_checkpoint = False
@@ -68,11 +63,11 @@ class RadicalClassifier:
         probs = probabilities[0].cpu().numpy()
         
         return {
-            'label': self.labels[predicted_class],
+            'label': LABEL_MAP[predicted_class],
             'label_id': predicted_class,
             'confidence': confidence,
             'probabilities': {
-                self.labels[i]: float(probs[i]) for i in range(self.num_labels)
+                LABEL_MAP[i]: float(probs[i]) for i in range(self.num_labels)
             }
         }
 
@@ -99,11 +94,11 @@ class RadicalClassifier:
             
             results.append({
                 'text': text,
-                'label': self.labels[predicted_class],
+                'label': LABEL_MAP[predicted_class],
                 'label_id': int(predicted_class),
                 'confidence': confidence,
                 'probabilities': {
-                    self.labels[j]: float(probs[j]) for j in range(self.num_labels)
+                    LABEL_MAP[j]: float(probs[j]) for j in range(self.num_labels)
                 }
             })
 
