@@ -1,6 +1,6 @@
 import re
 import string
-from typing import List
+from typing import List, Dict, Any
 
 
 class TextPreprocessor:
@@ -41,7 +41,7 @@ class TextPreprocessor:
     def tokenize(self, text: str) -> List[str]:
         return text.split()
 
-    def preprocess(self, text: str) -> dict:
+    def preprocess(self, text: str) -> Dict[str, Any]:
         cleaned = self.clean(text)
         tokens = self.tokenize(cleaned)
         return {
