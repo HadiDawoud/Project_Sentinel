@@ -4,6 +4,7 @@ import time
 import uuid
 import yaml
 import json
+import os
 from collections import OrderedDict
 from pathlib import Path
 from typing import Dict, List, Optional, Union
@@ -38,11 +39,24 @@ class SentinelPipeline:
         return {"status": "warmup_complete", "model_loaded": self.classifier.is_loaded}
 
     def _load_config(self, config_path: str) -> Dict:
-        path = Path(config_path)
+        env_config_path = os.environ.get('SENTINEL_CONFIG_PATH', config_path)
+        path = Path(env_config_path)
         if not path.exists():
             return self._default_config()
         with open(path, 'r') as f:
-            return yaml.safe_load(f)
+            config = yaml.safe_load(f)
+        return self._apply_env_overrides(config)
+    
+    def _apply_env_overrides(self, config: Dict) -> Dict:
+        if os.environ.get('SENTINEL_MODEL_NAME'):
+            config.setdefault('model', {})['name'] = os.environ['SENTINEL_MODEL_NAME']
+        if os.environ.get('SENTINEL_MODEL_PATH'):
+            config.setdefault('model', {})['checkpoint_path'] = os.environ['SENTINEL_MODEL_PATH']
+        if os.environ.get('SENTINEL_LOG_LEVEL'):
+            config.setdefault('logging', {})['level'] = os.environ['SENTINEL_LOG_LEVEL']
+        if os.environ.get('SENTINEL_CACHE_SIZE'):
+            config.setdefault('pipeline', {})['classify_cache_size'] = int(os.environ['SENTINEL_CACHE_SIZE'])
+        return config
 
     def _default_config(self) -> Dict:
         return {
