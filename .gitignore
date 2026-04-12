@@ -23,6 +23,8 @@ ENV/
 # Logs
 logs/
 *.log
+api_logs/
+audit.log
 
 # Model checkpoints
 models/checkpoints/
