@@ -222,10 +222,36 @@ class SentinelPipeline:
         
         return outputs
 
-    def classify_from_file(self, file_path: str, output_path: Optional[str] = None) -> List[Dict]:
-        path = Path(file_path)
-        if not path.exists():
+    ALLOWED_EXTENSIONS = {'.json', '.jsonl', '.txt'}
+    ALLOWED_INPUT_DIRS = {'data/raw', 'data/processed', 'data/uploads'}
+    
+    def _validate_file_path(self, file_path: str) -> Path:
+        resolved_path = Path(file_path).resolve()
+        
+        if '..' in Path(file_path).parts:
+            raise ValueError(f"Path traversal detected in: {file_path}")
+        
+        if not resolved_path.exists():
             raise FileNotFoundError(f"Input file not found: {file_path}")
+        
+        if not resolved_path.is_file():
+            raise ValueError(f"Path is not a file: {file_path}")
+        
+        if resolved_path.suffix not in self.ALLOWED_EXTENSIONS:
+            raise ValueError(f"Unsupported file format: {resolved_path.suffix}. Allowed: {self.ALLOWED_EXTENSIONS}")
+        
+        parent_dir = str(resolved_path.parent)
+        is_allowed = any(
+            parent_dir.startswith(str(Path(allowed_dir).resolve()))
+            for allowed_dir in self.ALLOWED_INPUT_DIRS
+        )
+        if not is_allowed:
+            raise ValueError(f"File must be in allowed directories: {self.ALLOWED_INPUT_DIRS}")
+        
+        return resolved_path
+
+    def classify_from_file(self, file_path: str, output_path: Optional[str] = None) -> List[Dict]:
+        path = self._validate_file_path(file_path)
         
         if path.suffix == '.json':
             with open(path, 'r') as f:
