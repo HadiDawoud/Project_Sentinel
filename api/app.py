@@ -227,6 +227,18 @@ async def warmup():
     }
 
 
+@app.get("/model/status", tags=["meta"], summary="Get ML model status")
+async def model_status():
+    classifier = pipeline.classifier
+    return {
+        "model_loaded": classifier.is_loaded,
+        "model_name": classifier.model_name,
+        "num_labels": classifier.num_labels,
+        "device": str(classifier.device),
+        "checkpoint_path": classifier.checkpoint_path
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
