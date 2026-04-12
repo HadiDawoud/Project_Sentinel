@@ -87,6 +87,16 @@ class SentinelPipeline:
             self._audit_logger.addHandler(h)
 
     def classify(self, text: str, return_raw: bool = False, request_id: Optional[str] = None) -> Dict:
+        """Classify a single text through the full pipeline.
+        
+        Args:
+            text: Input text to classify
+            return_raw: If True, include raw preprocessor/rule/ML results
+            request_id: Optional correlation ID for tracing
+            
+        Returns:
+            Dict with label, risk_score, confidence, flagged_terms, etc.
+        """
         if request_id is None:
             request_id = str(uuid.uuid4())
 
@@ -161,6 +171,16 @@ class SentinelPipeline:
         return output
 
     def classify_batch(self, texts: List[str], parallel: bool = False, request_id: Optional[str] = None) -> List[Dict]:
+        """Classify multiple texts in batch.
+        
+        Args:
+            texts: List of input texts to classify
+            parallel: If True, use parallel processing (ThreadPoolExecutor)
+            request_id: Optional correlation ID for tracing
+            
+        Returns:
+            List of classification results
+        """
         if not texts:
             return []
 
@@ -296,6 +316,15 @@ class SentinelPipeline:
         return resolved_path
 
     def classify_from_file(self, file_path: str, output_path: Optional[str] = None) -> List[Dict]:
+        """Classify texts from a file.
+        
+        Args:
+            file_path: Path to input file (.json, .jsonl, .txt)
+            output_path: Optional path to write results
+            
+        Returns:
+            List of classification results
+        """
         path = self._validate_file_path(file_path)
         
         if path.suffix == '.json':
