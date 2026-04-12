@@ -1,5 +1,7 @@
 import os
 import secrets
+import logging
+import uuid
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
@@ -10,6 +12,8 @@ from slowapi.util import get_remote_address
 
 from sentinel.pipeline import SentinelPipeline
 from sentinel.constants import MAX_INPUT_LENGTH
+
+logger = logging.getLogger("sentinel.api")
 
 limiter = Limiter(key_func=get_remote_address)
 
@@ -91,6 +95,13 @@ class ClassificationResult(BaseModel):
     latency_ms: Optional[float] = None
 
 
+class ErrorResponse(BaseModel):
+    error_code: str
+    message: str
+    request_id: Optional[str] = None
+    details: Optional[dict] = None
+
+
 @app.get("/", tags=["meta"], summary="Health check")
 async def root():
     return {"message": "Project Sentinel API", "status": "running"}
@@ -134,11 +145,17 @@ async def classify(
     input_data: TextInput,
     _auth: None = Depends(_optional_api_key_auth),
 ):
+    request_id = str(uuid.uuid4())
     try:
         result = pipeline.classify(input_data.text, return_raw=input_data.return_raw)
+        result['request_id'] = request_id
         return result
+    except ValueError as e:
+        logger.warning(f"Validation error in /classify [request_id={request_id}]: {e}")
+        raise HTTPException(status_code=400, detail={"error_code": "VALIDATION_ERROR", "message": str(e), "request_id": request_id})
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Unexpected error in /classify [request_id={request_id}]: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail={"error_code": "INTERNAL_ERROR", "message": "An unexpected error occurred", "request_id": request_id})
 
 
 @app.post("/classify/batch", tags=["classification"], summary="Classify multiple texts")
@@ -148,11 +165,16 @@ async def classify_batch(
     input_data: BatchInput,
     _auth: None = Depends(_optional_api_key_auth),
 ):
+    request_id = str(uuid.uuid4())
     try:
         results = pipeline.classify_batch(input_data.texts)
-        return {"results": results}
+        return {"results": results, "request_id": request_id, "count": len(results)}
+    except ValueError as e:
+        logger.warning(f"Validation error in /classify/batch [request_id={request_id}]: {e}")
+        raise HTTPException(status_code=400, detail={"error_code": "VALIDATION_ERROR", "message": str(e), "request_id": request_id})
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Unexpected error in /classify/batch [request_id={request_id}]: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail={"error_code": "INTERNAL_ERROR", "message": "An unexpected error occurred", "request_id": request_id})
 
 
 @app.post("/classify/file", tags=["classification"], summary="Classify from a local file path")
@@ -163,13 +185,19 @@ async def classify_file(
     output_format: str = "json",
     _auth: None = Depends(_optional_api_key_auth),
 ):
+    request_id = str(uuid.uuid4())
     try:
         results = pipeline.classify_from_file(file_url)
-        return {"results": results, "count": len(results)}
+        return {"results": results, "count": len(results), "request_id": request_id}
     except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        logger.warning(f"File not found in /classify/file [request_id={request_id}]: {e}")
+        raise HTTPException(status_code=404, detail={"error_code": "FILE_NOT_FOUND", "message": str(e), "request_id": request_id})
+    except ValueError as e:
+        logger.warning(f"Invalid file format in /classify/file [request_id={request_id}]: {e}")
+        raise HTTPException(status_code=400, detail={"error_code": "INVALID_FORMAT", "message": str(e), "request_id": request_id})
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Unexpected error in /classify/file [request_id={request_id}]: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail={"error_code": "INTERNAL_ERROR", "message": "An unexpected error occurred", "request_id": request_id})
 
 
 @app.get("/cache/stats", tags=["meta"], summary="Get cache statistics")

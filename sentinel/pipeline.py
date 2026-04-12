@@ -252,8 +252,10 @@ class SentinelPipeline:
             try:
                 with open(self.log_file, 'a') as f:
                     f.write(json.dumps(result) + '\n')
-            except Exception:
-                pass
+            except IOError as e:
+                self._audit_logger.error(f"Failed to write to log file {self.log_file}: {e}")
+            except Exception as e:
+                self._audit_logger.error(f"Unexpected error writing to log file {self.log_file}: {e}")
         if self.audit_enabled and self.audit_file:
             try:
                 with open(self.audit_file, 'a') as f:
@@ -267,5 +269,7 @@ class SentinelPipeline:
                         'bias_metadata': result.get('bias_metadata'),
                     }
                     f.write(json.dumps(audit_entry) + '\n')
-            except Exception:
-                pass
+            except IOError as e:
+                self._audit_logger.error(f"Failed to write to audit file {self.audit_file}: {e}")
+            except Exception as e:
+                self._audit_logger.error(f"Unexpected error writing to audit file {self.audit_file}: {e}")
