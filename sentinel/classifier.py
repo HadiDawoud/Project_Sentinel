@@ -7,6 +7,8 @@ from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from pathlib import Path
 
 from .constants import LABEL_MAP, DEFAULT_MAX_LENGTH
+from .exceptions import ModelLoadError, PredictionError
+
 
 class TimeoutError(Exception):
     pass
@@ -38,24 +40,27 @@ class RadicalClassifier:
 
     def _load_model(self) -> None:
         valid_checkpoint = False
-        if self.checkpoint_path and Path(self.checkpoint_path).exists():
-            if any(Path(self.checkpoint_path).iterdir()):
-                valid_checkpoint = True
-        
-        if valid_checkpoint:
-            self.model = AutoModelForSequenceClassification.from_pretrained(
-                self.checkpoint_path,
-                num_labels=self.num_labels
-            )
-        else:
-            self.model = AutoModelForSequenceClassification.from_pretrained(
-                self.model_name,
-                num_labels=self.num_labels
-            )
-        
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-        self.model.to(self.device)
-        self.model.eval()
+        try:
+            if self.checkpoint_path and Path(self.checkpoint_path).exists():
+                if any(Path(self.checkpoint_path).iterdir()):
+                    valid_checkpoint = True
+            
+            if valid_checkpoint:
+                self.model = AutoModelForSequenceClassification.from_pretrained(
+                    self.checkpoint_path,
+                    num_labels=self.num_labels
+                )
+            else:
+                self.model = AutoModelForSequenceClassification.from_pretrained(
+                    self.model_name,
+                    num_labels=self.num_labels
+                )
+            
+            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+            self.model.to(self.device)
+            self.model.eval()
+        except Exception as e:
+            raise ModelLoadError(f"Failed to load model: {e}") from e
 
     def warmup(self, num_inferences: int = 3) -> None:
         self._ensure_model_loaded()
