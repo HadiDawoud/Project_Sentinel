@@ -141,19 +141,27 @@ class SentinelPipeline:
             h.setFormatter(logging.Formatter('%(message)s'))
             self._audit_logger.addHandler(h)
 
-    def classify(self, text: str, return_raw: bool = False, request_id: Optional[str] = None) -> Dict:
+    def classify(self, text: str, return_raw: bool = False, request_id: Optional[str] = None, max_length: Optional[int] = None) -> Dict:
         """Classify a single text through the full pipeline.
         
         Args:
             text: Input text to classify
             return_raw: If True, include raw preprocessor/rule/ML results
             request_id: Optional correlation ID for tracing
+            max_length: Optional max input length override
             
         Returns:
             Dict with label, risk_score, confidence, flagged_terms, etc.
         """
         if request_id is None:
             request_id = str(uuid.uuid4())
+        
+        if not text or not isinstance(text, str):
+            raise ValueError("Input text must be a non-empty string")
+        
+        input_max_length = max_length if max_length is not None else self.config.get('pipeline', {}).get('max_input_length', 10000)
+        if input_max_length and len(text) > input_max_length:
+            text = text[:input_max_length]
 
         if (
             self._classify_cache_max > 0
