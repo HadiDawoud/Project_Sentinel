@@ -7,12 +7,22 @@ import json
 import os
 from collections import OrderedDict
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, Any, Callable
 from datetime import datetime
+from dataclasses import dataclass, field
 
 from .preprocessor import TextPreprocessor
 from .rule_engine import RuleEngine
 from .fusion import ScoreFusion
+
+
+@dataclass
+class BatchStats:
+    total: int = 0
+    processed: int = 0
+    failed: int = 0
+    elapsed_ms: float = 0.0
+    items_per_second: float = 0.0
 
 
 class SentinelPipeline:
@@ -37,6 +47,51 @@ class SentinelPipeline:
     def warmup(self, num_inferences: int = 3) -> Dict:
         self.classifier.warmup(num_inferences)
         return {"status": "warmup_complete", "model_loaded": self.classifier.is_loaded}
+
+    def health_check(self) -> Dict[str, Any]:
+        health: Dict[str, Any] = {
+            "status": "healthy",
+            "components": {},
+            "issues": []
+        }
+        
+        preprocessor_status = "healthy"
+        try:
+            test_result = self.preprocessor.preprocess("health check test")
+            if not test_result.get("cleaned"):
+                preprocessor_status = "degraded"
+        except Exception as e:
+            preprocessor_status = "unhealthy"
+            health["issues"].append(f"preprocessor: {str(e)}")
+        health["components"]["preprocessor"] = preprocessor_status
+        
+        rule_engine_status = "healthy"
+        try:
+            test_rule = self.rule_engine.analyze("health check test")
+            if test_rule is None:
+                rule_engine_status = "degraded"
+        except Exception as e:
+            rule_engine_status = "unhealthy"
+            health["issues"].append(f"rule_engine: {str(e)}")
+        health["components"]["rule_engine"] = rule_engine_status
+        
+        classifier_status = "healthy"
+        if not self.classifier.is_loaded:
+            classifier_status = "not_loaded"
+        else:
+            try:
+                _ = self.classifier.predict("health check test")
+            except Exception as e:
+                classifier_status = "unhealthy"
+                health["issues"].append(f"classifier: {str(e)}")
+        health["components"]["classifier"] = classifier_status
+        
+        if any(s in ("unhealthy", "not_loaded") for s in health["components"].values()):
+            health["status"] = "degraded"
+        if health["issues"]:
+            health["status"] = "unhealthy"
+        
+        return health
 
     def _load_config(self, config_path: str) -> Dict:
         env_config_path = os.environ.get('SENTINEL_CONFIG_PATH', config_path)
