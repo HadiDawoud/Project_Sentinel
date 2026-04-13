@@ -437,7 +437,20 @@ class SentinelPipeline:
             'hits': self._cache_hits,
             'misses': self._cache_misses,
             'hit_rate': round(self._cache_hits / max(1, self._cache_hits + self._cache_misses), 3),
+            'batch_stats': {
+                'total': self._batch_stats.total,
+                'processed': self._batch_stats.processed,
+                'elapsed_ms': self._batch_stats.elapsed_ms,
+                'items_per_second': self._batch_stats.items_per_second,
+            } if self._batch_stats.total > 0 else None,
         }
+
+    def reset_cache(self) -> Dict:
+        cleared_items = len(self._classify_cache)
+        self._classify_cache.clear()
+        self._cache_hits = 0
+        self._cache_misses = 0
+        return {'status': 'cleared', 'items_removed': cleared_items}
 
     def _log_result(self, result: Dict, request_id: Optional[str] = None) -> None:
         if request_id:
