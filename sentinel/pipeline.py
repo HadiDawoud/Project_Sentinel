@@ -42,6 +42,7 @@ class SentinelPipeline:
         self._classify_cache: OrderedDict[str, Dict] = OrderedDict()
         self._cache_hits = 0
         self._cache_misses = 0
+        self._batch_stats = BatchStats()
         self._setup_logging()
 
     def warmup(self, num_inferences: int = 3) -> Dict:
@@ -263,6 +264,10 @@ class SentinelPipeline:
         ml_batch = self.classifier.predict_batch(texts)
         elapsed_ms = (time.perf_counter() - t0) * 1000
         per_item_ms = round(elapsed_ms / len(texts), 2) if self._include_latency_ms else None
+        self._batch_stats.total = total
+        self._batch_stats.processed = len(texts)
+        self._batch_stats.elapsed_ms = elapsed_ms
+        self._batch_stats.items_per_second = round(len(texts) / (elapsed_ms / 1000), 2) if elapsed_ms > 0 else 0
 
         outputs: List[Dict] = []
         for i, text in enumerate(texts):

@@ -2,6 +2,7 @@ import torch
 import numpy as np
 import signal
 import platform
+import os
 from typing import Any, Dict, List, Optional
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from pathlib import Path
@@ -12,6 +13,12 @@ from .exceptions import ModelLoadError, PredictionError
 
 class TimeoutError(Exception):
     pass
+
+
+def _compute_device() -> torch.device:
+    if os.environ.get('SENTINEL_DEVICE'):
+        return torch.device(os.environ['SENTINEL_DEVICE'])
+    return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class RadicalClassifier:
@@ -25,10 +32,11 @@ class RadicalClassifier:
         self.model_name = model_name
         self.num_labels = num_labels
         self.checkpoint_path = checkpoint_path
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = _compute_device()
         self.tokenizer = None
         self.model = None
         self._is_loaded = False
+        self._inference_count = 0
         if not lazy_load:
             self._ensure_model_loaded()
 
@@ -105,6 +113,7 @@ class RadicalClassifier:
             return self._predict_impl(text)
     
     def _predict_impl(self, text: str) -> Dict[str, Any]:
+        self._inference_count += 1
         inputs = self.tokenizer(
             text,
             return_tensors="pt",
@@ -182,3 +191,11 @@ class RadicalClassifier:
             probabilities = torch.softmax(outputs.logits, dim=-1)
 
         return {i: float(probabilities[0][i]) for i in range(self.num_labels)}
+
+    def get_stats(self) -> Dict[str, Any]:
+        return {
+            "inference_count": self._inference_count,
+            "device": str(self.device),
+            "model_name": self.model_name,
+            "is_loaded": self._is_loaded,
+        }
