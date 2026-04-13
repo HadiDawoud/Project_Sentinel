@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from .preprocessor import TextPreprocessor
 from .rule_engine import RuleEngine
 from .fusion import ScoreFusion
+from .exceptions import ModelLoadError, PredictionError
 
 
 @dataclass
@@ -190,9 +191,18 @@ class SentinelPipeline:
         t0 = time.perf_counter()
         preprocessed = self.preprocessor.preprocess(text)
         rule_result = self.rule_engine.analyze(preprocessed['cleaned'])
-        ml_result = self.classifier.predict(text)
+        
+        ml_result: Dict[str, Any] = {"label": "Non-Radical", "confidence": 0.5, "probabilities": {"Non-Radical": 0.5, "Mildly Radical": 0.2, "Moderately Radical": 0.2, "Highly Radical": 0.1}}
+        ml_warning = None
+        try:
+            ml_result = self.classifier.predict(text)
+        except Exception as e:
+            ml_warning = f"ML model unavailable: {str(e)}"
+            self._audit_logger.warning(ml_warning)
 
         fused_result = self.fusion.fuse(rule_result, ml_result)
+        if ml_warning:
+            fused_result["reasoning"] = fused_result.get("reasoning", "") + f" ({ml_warning})"
         latency_ms = round((time.perf_counter() - t0) * 1000, 2)
 
         output = {

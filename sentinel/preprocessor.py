@@ -1,11 +1,12 @@
 import re
 import string
 from typing import List, Dict, Any
+from concurrent.futures import ThreadPoolExecutor
 
 
 class TextPreprocessor:
-    def __init__(self):
-        self.url_pattern = re.compile(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+')
+    def __init__(self, num_workers: int = 1):
+        self.url_pattern = re.compile(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+')
         self.mention_pattern = re.compile(r'@\w+')
         self.hashtag_pattern = re.compile(r'#\w+')
         self.email_pattern = re.compile(r'\S+@\S+\.\S+')
@@ -20,6 +21,7 @@ class TextPreprocessor:
             "\U000024C2-\U0001F251"
             "]+", flags=re.UNICODE
         )
+        self._num_workers = max(1, num_workers)
 
     def __repr__(self):
         return f"TextPreprocessor()"
@@ -50,3 +52,12 @@ class TextPreprocessor:
             'tokens': tokens,
             'token_count': len(tokens)
         }
+
+    def preprocess_batch(self, texts: List[str]) -> List[Dict[str, Any]]:
+        if not texts:
+            return []
+        if len(texts) < 10 or self._num_workers <= 1:
+            return [self.preprocess(t) for t in texts]
+        with ThreadPoolExecutor(max_workers=self._num_workers) as executor:
+            results = list(executor.map(self.preprocess, texts))
+        return results
