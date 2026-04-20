@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from .preprocessor import TextPreprocessor
 from .rule_engine import RuleEngine
 from .fusion import ScoreFusion
-from .exceptions import ModelLoadError, PredictionError
+from .exceptions import ModelLoadError, PredictionError, ValidationError
 
 
 @dataclass
@@ -142,6 +142,14 @@ class SentinelPipeline:
             config.setdefault('pipeline', {})['classify_cache_size'] = int(os.environ['SENTINEL_CACHE_SIZE'])
         return config
 
+    def _validate_input(self, text: str) -> None:
+        if not text:
+            raise ValidationError("Input text cannot be empty")
+        if not isinstance(text, str):
+            raise ValidationError(f"Input must be a string, got {type(text).__name__}")
+        if not text.strip():
+            raise ValidationError("Input text cannot be only whitespace")
+
     def _default_config(self) -> Dict:
         return {
             'rule_engine': {'data_path': 'data/rules/keywords.yaml'},
@@ -185,8 +193,7 @@ class SentinelPipeline:
         if request_id is None:
             request_id = str(uuid.uuid4())
         
-        if not text or not isinstance(text, str):
-            raise ValueError("Input text must be a non-empty string")
+        self._validate_input(text)
         
         input_max_length = max_length if max_length is not None else self.config.get('pipeline', {}).get('max_input_length', 10000)
         if input_max_length and len(text) > input_max_length:
@@ -285,8 +292,21 @@ class SentinelPipeline:
         if not texts:
             return []
 
+        self._validate_batch_inputs(texts)
+
         if request_id is None:
             request_id = str(uuid.uuid4())
+
+    def _validate_batch_inputs(self, texts: List[str]) -> None:
+        if not isinstance(texts, list):
+            raise ValidationError(f"texts must be a list, got {type(texts).__name__}")
+        if len(texts) > 1000:
+            raise ValidationError(f"Batch size exceeds maximum of 1000: {len(texts)}")
+        for i, text in enumerate(texts):
+            if not text:
+                raise ValidationError(f"Empty text at index {i}")
+            if not isinstance(text, str):
+                raise ValidationError(f"Text at index {i} must be string, got {type(text).__name__}")
 
         if parallel:
             return self._classify_batch_parallel(texts, request_id)
