@@ -13,8 +13,15 @@ from pathlib import Path
 from sentinel.pipeline import SentinelPipeline
 
 
+pipeline_instance = None
+
 def signal_handler(signum, frame):
     print("\nInterrupted. Exiting gracefully.", file=sys.stderr)
+    if pipeline_instance is not None:
+        try:
+            pipeline_instance.shutdown()
+        except Exception:
+            pass
     sys.exit(130)
 
 
@@ -158,6 +165,8 @@ def main():
         args.input = args.input[:MAX_INPUT_LENGTH]
 
     pipeline = SentinelPipeline(config_path=args.config)
+    global pipeline_instance
+    pipeline_instance = pipeline
 
     if Path(args.input).is_file():
         results = pipeline.classify_from_file(args.input, args.output)

@@ -559,6 +559,23 @@ def classify_batch(
     def get_prometheus_metrics(self) -> str:
         return self._metrics.get_metrics()
 
+    def shutdown(self) -> Dict[str, Any]:
+        cache_items = len(self._classify_cache)
+        self._classify_cache.clear()
+        
+        if hasattr(self, 'classifier') and self.classifier is not None:
+            try:
+                self.classifier.unload()
+            except Exception:
+                pass
+        
+        stats = self.get_cache_stats()
+        return {
+            "status": "shutdown_complete",
+            "cache_cleared": cache_items,
+            "model_unloaded": True
+        }
+
     def reset_cache(self) -> Dict:
         cleared_items = len(self._classify_cache)
         self._classify_cache.clear()

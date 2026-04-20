@@ -240,3 +240,18 @@ class RadicalClassifier:
             "is_loaded": self._is_loaded,
             "max_retries": self.max_retries,
         }
+
+    def unload(self) -> None:
+        if self.model is not None:
+            del self.model
+            self.model = None
+        if self.tokenizer is not None:
+            del self.tokenizer
+            self.tokenizer = None
+        self._is_loaded = False
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+    def shutdown(self) -> Dict[str, Any]:
+        self.unload()
+        return {"status": "shutdown_complete"}
