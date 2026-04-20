@@ -278,13 +278,20 @@ class SentinelPipeline:
 
         return output
 
-    def classify_batch(self, texts: List[str], parallel: bool = False, request_id: Optional[str] = None) -> List[Dict]:
+def classify_batch(
+        self,
+        texts: List[str],
+        parallel: bool = False,
+        request_id: Optional[str] = None,
+        progress_callback: Optional[Callable[[int, int], None]] = None
+    ) -> List[Dict]:
         """Classify multiple texts in batch.
         
         Args:
             texts: List of input texts to classify
             parallel: If True, use parallel processing (ThreadPoolExecutor)
             request_id: Optional correlation ID for tracing
+            progress_callback: Optional callback(completed, total) for progress updates
             
         Returns:
             List of classification results
@@ -297,23 +304,12 @@ class SentinelPipeline:
         if request_id is None:
             request_id = str(uuid.uuid4())
 
-    def _validate_batch_inputs(self, texts: List[str]) -> None:
-        if not isinstance(texts, list):
-            raise ValidationError(f"texts must be a list, got {type(texts).__name__}")
-        if len(texts) > 1000:
-            raise ValidationError(f"Batch size exceeds maximum of 1000: {len(texts)}")
-        for i, text in enumerate(texts):
-            if not text:
-                raise ValidationError(f"Empty text at index {i}")
-            if not isinstance(text, str):
-                raise ValidationError(f"Text at index {i} must be string, got {type(text).__name__}")
-
         if parallel:
-            return self._classify_batch_parallel(texts, request_id)
+            return self._classify_batch_parallel(texts, request_id, progress_callback)
         
-        return self._classify_batch_sequential(texts, request_id)
+        return self._classify_batch_sequential(texts, request_id, progress_callback)
 
-    def _classify_batch_sequential(self, texts: List[str], request_id: str) -> List[Dict]:
+    def _classify_batch_sequential(self, texts: List[str], request_id: str, progress_callback: Optional[Callable[[int, int], None]] = None) -> List[Dict]:
         total = len(texts)
         t0 = time.perf_counter()
         preprocessed = [self.preprocessor.preprocess(t) for t in texts]
@@ -331,6 +327,8 @@ class SentinelPipeline:
             if total > 10 and i % max(1, total // 10) == 0:
                 pct = round((i / total) * 100)
                 print(f"\rProcessing: {pct}% ({i}/{total})", file=sys.stderr, end='', flush=True)
+                if progress_callback:
+                    progress_callback(i, total)
             rule_result = rule_results[i]
             ml_result = ml_batch[i]
             ml_for_fuse = {k: v for k, v in ml_result.items() if k != 'text'}
@@ -354,21 +352,36 @@ class SentinelPipeline:
             self._log_result(output, request_id)
             outputs.append(output)
 
+        if progress_callback:
+            progress_callback(total, total)
         if total > 10:
             print(f"\rProcessing: 100% ({total}/{total})", file=sys.stderr)
         return outputs
 
-    def _classify_batch_parallel(self, texts: List[str], request_id: str) -> List[Dict]:
+    def _classify_batch_parallel(self, texts: List[str], request_id: str, progress_callback: Optional[Callable[[int, int], None]] = None) -> List[Dict]:
         from concurrent.futures import ThreadPoolExecutor
         outputs: List[Dict] = []
         
         max_workers = min(self._batch_max_workers, len(texts))
+        total = len(texts)
+        
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            results = list(executor.map(
-                lambda args: self.classify(args[0], request_id=args[1]),
-                [(text, f"{request_id}_{i}") for i, text in enumerate(texts)]
-            ))
-            outputs = results
+            if progress_callback:
+                completed = 0
+                results = []
+                futures = {executor.submit(self.classify, text, request_id=f"{request_id}_{i}"): i for i, text in enumerate(texts)}
+                for future in futures:
+                    results.append(future.result())
+                    completed += 1
+                    progress_callback(completed, total)
+                results.sort(key=lambda x: int(x.get('request_id', '0').split('_')[-1]))
+                outputs = results
+            else:
+                results = list(executor.map(
+                    lambda args: self.classify(args[0], request_id=args[1]),
+                    [(text, f"{request_id}_{i}") for i, text in enumerate(texts)]
+                ))
+                outputs = results
         
         return outputs
 
