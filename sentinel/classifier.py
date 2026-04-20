@@ -3,6 +3,7 @@ import numpy as np
 import signal
 import platform
 import os
+import time
 from typing import Any, Dict, List, Optional
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from pathlib import Path
@@ -27,7 +28,9 @@ class RadicalClassifier:
         model_name: str = "distilbert-base-uncased",
         num_labels: int = 4,
         checkpoint_path: Optional[str] = None,
-        lazy_load: bool = False
+        lazy_load: bool = False,
+        max_retries: int = 3,
+        retry_delay: float = 0.5
     ):
         self.model_name = model_name
         self.num_labels = num_labels
@@ -37,6 +40,9 @@ class RadicalClassifier:
         self.model = None
         self._is_loaded = False
         self._inference_count = 0
+        self._retry_count = 0
+        self.max_retries = max_retries
+        self.retry_delay = retry_delay
         if not lazy_load:
             self._ensure_model_loaded()
 
@@ -99,18 +105,33 @@ class RadicalClassifier:
 
     def predict(self, text: str, timeout: Optional[float] = None) -> Dict[str, Any]:
         self._ensure_model_loaded()
-        if timeout and platform.system() != 'Windows':
-            def timeout_handler(signum, frame):
-                raise TimeoutError(f"Prediction timed out after {timeout}s")
-            old_handler = signal.signal(signal.SIGALRM, timeout_handler)
-            signal.alarm(int(timeout))
+        
+        last_exception = None
+        for attempt in range(self.max_retries):
             try:
-                return self._predict_impl(text)
-            finally:
-                signal.alarm(0)
-                signal.signal(signal.SIGALRM, old_handler)
-        else:
-            return self._predict_impl(text)
+                if timeout and platform.system() != 'Windows':
+                    def timeout_handler(signum, frame):
+                        raise TimeoutError(f"Prediction timed out after {timeout}s")
+                    old_handler = signal.signal(signal.SIGALRM, timeout_handler)
+                    signal.alarm(int(timeout))
+                    try:
+                        return self._predict_impl(text)
+                    finally:
+                        signal.alarm(0)
+                        signal.signal(signal.SIGALRM, old_handler)
+                else:
+                    return self._predict_impl(text)
+            except (RuntimeError, torch.cuda.OutOfMemoryError, OSError) as e:
+                last_exception = e
+                self._retry_count += 1
+                if attempt < self.max_retries - 1:
+                    time.sleep(self.retry_delay * (attempt + 1))
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                else:
+                    raise PredictionError(f"Prediction failed after {self.max_retries} attempts: {e}") from e
+        
+        raise PredictionError(f"Prediction failed: {last_exception}")
     
     def _predict_impl(self, text: str) -> Dict[str, Any]:
         self._inference_count += 1
@@ -143,6 +164,24 @@ class RadicalClassifier:
 
     def predict_batch(self, texts: List[str]) -> List[Dict[str, Any]]:
         self._ensure_model_loaded()
+        
+        last_exception = None
+        for attempt in range(self.max_retries):
+            try:
+                return self._predict_batch_impl(texts)
+            except (RuntimeError, torch.cuda.OutOfMemoryError, OSError) as e:
+                last_exception = e
+                self._retry_count += 1
+                if attempt < self.max_retries - 1:
+                    time.sleep(self.retry_delay * (attempt + 1))
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                else:
+                    raise PredictionError(f"Batch prediction failed after {self.max_retries} attempts: {e}") from e
+        
+        raise PredictionError(f"Batch prediction failed: {last_exception}")
+
+    def _predict_batch_impl(self, texts: List[str]) -> List[Dict[str, Any]]:
         inputs = self.tokenizer(
             texts,
             return_tensors="pt",
@@ -195,7 +234,9 @@ class RadicalClassifier:
     def get_stats(self) -> Dict[str, Any]:
         return {
             "inference_count": self._inference_count,
+            "retry_count": self._retry_count,
             "device": str(self.device),
             "model_name": self.model_name,
             "is_loaded": self._is_loaded,
+            "max_retries": self.max_retries,
         }
