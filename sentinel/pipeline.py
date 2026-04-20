@@ -37,10 +37,11 @@ class SentinelPipeline:
         )
         pipe_cfg = self.config.get('pipeline', {})
         self._classify_cache_max = max(0, int(pipe_cfg.get('classify_cache_size', 0)))
+        self._cache_ttl_seconds = float(pipe_cfg.get('cache_ttl_seconds', 300))
         self._include_latency_ms = bool(pipe_cfg.get('include_latency_ms', False))
         self._batch_max_workers = int(pipe_cfg.get('batch_max_workers', 4))
         self._batch_chunk_size = int(pipe_cfg.get('batch_chunk_size', 8))
-        self._classify_cache: OrderedDict[str, Dict] = OrderedDict()
+        self._classify_cache: OrderedDict[str, tuple] = OrderedDict()
         self._cache_hits = 0
         self._cache_misses = 0
         self._batch_stats = BatchStats()
@@ -121,6 +122,10 @@ class SentinelPipeline:
         if cache_size < 0 or cache_size > 10000:
             raise ConfigurationError(f"Invalid pipeline.classify_cache_size: {cache_size}")
         
+        cache_ttl = cfg_pipeline.get('cache_ttl_seconds', 300)
+        if cache_ttl < 0 or cache_ttl > 86400:
+            raise ConfigurationError(f"Invalid pipeline.cache_ttl_seconds: {cache_ttl}")
+        
         cfg_rule = config.get('rule_engine', {})
         weights = cfg_rule.get('weights', {})
         total_weight = sum(weights.values()) if weights else 0
@@ -157,7 +162,7 @@ class SentinelPipeline:
                 'name': 'distilbert-base-uncased',
                 'num_labels': 4
             },
-            'pipeline': {'classify_cache_size': 0, 'include_latency_ms': False},
+            'pipeline': {'classify_cache_size': 0, 'cache_ttl_seconds': 300, 'include_latency_ms': False},
         }
 
     def _setup_logging(self) -> None:
@@ -204,23 +209,26 @@ class SentinelPipeline:
             and not return_raw
             and text in self._classify_cache
         ):
-            self._cache_hits += 1
-            self._classify_cache.move_to_end(text)
-            cached = self._classify_cache[text]
-            t0 = time.perf_counter()
-            output = {
-                **cached,
-                'timestamp': datetime.now().isoformat(),
-                'input': text,
-                'audit_id': str(uuid.uuid4()),
-                'request_id': request_id,
-            }
-            if self._include_latency_ms:
-                output['latency_ms'] = round((time.perf_counter() - t0) * 1000, 2)
-            self._log_result(output, request_id)
-            return output
-        else:
-            self._cache_misses += 1
+            cached_result, cached_time = self._classify_cache[text]
+            if time.time() - cached_time <= self._cache_ttl_seconds:
+                self._cache_hits += 1
+                self._classify_cache.move_to_end(text)
+                t0 = time.perf_counter()
+                output = {
+                    **cached_result,
+                    'timestamp': datetime.now().isoformat(),
+                    'input': text,
+                    'audit_id': str(uuid.uuid4()),
+                    'request_id': request_id,
+                }
+                if self._include_latency_ms:
+                    output['latency_ms'] = round((time.perf_counter() - t0) * 1000, 2)
+                self._log_result(output, request_id)
+                return output
+            else:
+                del self._classify_cache[text]
+        
+        self._cache_misses += 1
 
         t0 = time.perf_counter()
         preprocessed = self.preprocessor.preprocess(text)
@@ -271,7 +279,7 @@ class SentinelPipeline:
                 for k, v in output.items()
                 if k not in ('timestamp', 'audit_id', 'latency_ms', 'request_id')
             }
-            self._classify_cache[text] = stored
+            self._classify_cache[text] = (stored, time.time())
             self._classify_cache.move_to_end(text)
             while len(self._classify_cache) > self._classify_cache_max:
                 self._classify_cache.popitem(last=False)
@@ -493,6 +501,7 @@ def classify_batch(
         return {
             'enabled': self._classify_cache_max > 0,
             'max_size': self._classify_cache_max,
+            'ttl_seconds': self._cache_ttl_seconds,
             'current_size': len(self._classify_cache),
             'hits': self._cache_hits,
             'misses': self._cache_misses,
