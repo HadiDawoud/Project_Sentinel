@@ -8,7 +8,7 @@ import os
 from collections import OrderedDict
 from pathlib import Path
 from typing import Dict, List, Optional, Union, Any, Callable
-from datetime import datetime
+from datetime import datetime, timezone
 from dataclasses import dataclass, field
 
 from .preprocessor import TextPreprocessor
@@ -56,41 +56,60 @@ class SentinelPipeline:
         health: Dict[str, Any] = {
             "status": "healthy",
             "components": {},
-            "issues": []
+            "issues": [],
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "version": "1.0.0"
         }
         
         preprocessor_status = "healthy"
+        preprocessor_latency_ms = None
         try:
+            t0 = time.perf_counter()
             test_result = self.preprocessor.preprocess("health check test")
+            preprocessor_latency_ms = round((time.perf_counter() - t0) * 1000, 2)
             if not test_result.get("cleaned"):
                 preprocessor_status = "degraded"
         except Exception as e:
             preprocessor_status = "unhealthy"
-            health["issues"].append(f"preprocessor: {str(e)}")
-        health["components"]["preprocessor"] = preprocessor_status
+            health["issues"].append({"component": "preprocessor", "error": str(e)})
+        health["components"]["preprocessor"] = {"status": preprocessor_status, "latency_ms": preprocessor_latency_ms}
         
         rule_engine_status = "healthy"
+        rule_engine_latency_ms = None
         try:
+            t0 = time.perf_counter()
             test_rule = self.rule_engine.analyze("health check test")
+            rule_engine_latency_ms = round((time.perf_counter() - t0) * 1000, 2)
             if test_rule is None:
                 rule_engine_status = "degraded"
         except Exception as e:
             rule_engine_status = "unhealthy"
-            health["issues"].append(f"rule_engine: {str(e)}")
-        health["components"]["rule_engine"] = rule_engine_status
+            health["issues"].append({"component": "rule_engine", "error": str(e)})
+        health["components"]["rule_engine"] = {"status": rule_engine_status, "latency_ms": rule_engine_latency_ms}
         
         classifier_status = "healthy"
+        classifier_latency_ms = None
+        classifier_model_info = {}
         if not self.classifier.is_loaded:
             classifier_status = "not_loaded"
         else:
             try:
+                t0 = time.perf_counter()
                 _ = self.classifier.predict("health check test")
+                classifier_latency_ms = round((time.perf_counter() - t0) * 1000, 2)
+                classifier_model_info = self.classifier.get_stats()
             except Exception as e:
                 classifier_status = "unhealthy"
-                health["issues"].append(f"classifier: {str(e)}")
-        health["components"]["classifier"] = classifier_status
+                health["issues"].append({"component": "classifier", "error": str(e)})
+        health["components"]["classifier"] = {
+            "status": classifier_status,
+            "latency_ms": classifier_latency_ms,
+            "model_info": classifier_model_info
+        }
         
-        if any(s in ("unhealthy", "not_loaded") for s in health["components"].values()):
+        health["cache"] = self.get_cache_stats()
+        
+        if any(s.get("status") in ("unhealthy", "not_loaded") for s in health["components"].values()):
             health["status"] = "degraded"
         if health["issues"]:
             health["status"] = "unhealthy"
