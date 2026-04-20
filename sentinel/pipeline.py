@@ -102,7 +102,34 @@ class SentinelPipeline:
             return self._default_config()
         with open(path, 'r') as f:
             config = yaml.safe_load(f)
-        return self._apply_env_overrides(config)
+        config = self._apply_env_overrides(config)
+        self._validate_config(config)
+        return config
+
+    def _validate_config(self, config: Dict) -> None:
+        from .exceptions import ConfigurationError
+        
+        cfg_model = config.get('model', {})
+        if cfg_model.get('num_labels', 0) not in range(2, 10):
+            raise ConfigurationError(f"Invalid model.num_labels: {cfg_model.get('num_labels')}")
+        
+        if cfg_model.get('batch_size', 0) > 64:
+            raise ConfigurationError(f"model.batch_size exceeds maximum of 64: {cfg_model.get('batch_size')}")
+        
+        cfg_pipeline = config.get('pipeline', {})
+        cache_size = cfg_pipeline.get('classify_cache_size', 0)
+        if cache_size < 0 or cache_size > 10000:
+            raise ConfigurationError(f"Invalid pipeline.classify_cache_size: {cache_size}")
+        
+        cfg_rule = config.get('rule_engine', {})
+        weights = cfg_rule.get('weights', {})
+        total_weight = sum(weights.values()) if weights else 0
+        if total_weight > 1.5:
+            raise ConfigurationError(f"Rule weights total exceeds 1.5: {total_weight}")
+        
+        data_path = cfg_rule.get('data_path', '')
+        if data_path and not Path(data_path).exists() and not data_path.startswith('http'):
+            raise ConfigurationError(f"Rules file not found: {data_path}")
     
     def _apply_env_overrides(self, config: Dict) -> Dict:
         if os.environ.get('SENTINEL_MODEL_NAME'):
