@@ -15,6 +15,7 @@ from .preprocessor import TextPreprocessor
 from .rule_engine import RuleEngine
 from .fusion import ScoreFusion
 from .exceptions import ModelLoadError, PredictionError, ValidationError, PreprocessingError, CacheError, RuleEngineError
+from .metrics import MetricsCollector
 import contextlib
 
 
@@ -46,6 +47,7 @@ class SentinelPipeline:
         self._cache_hits = 0
         self._cache_misses = 0
         self._batch_stats = BatchStats()
+        self._metrics = MetricsCollector()
         self._setup_logging()
 
     def warmup(self, num_inferences: int = 3) -> Dict:
@@ -255,9 +257,14 @@ class SentinelPipeline:
                 if self._include_latency_ms:
                     output['latency_ms'] = round((time.perf_counter() - t0) * 1000, 2)
                 self._log_result(output, request_id)
+                self._metrics.increment_requests()
+                self._metrics.record_label(cached_result.get('label', 'Unknown'))
+                self._metrics.record_review(cached_result.get('requires_human_review', False))
                 return output
             else:
                 del self._classify_cache[text]
+        
+        self._cache_misses += 1
         
         self._cache_misses += 1
 
@@ -303,6 +310,10 @@ class SentinelPipeline:
             }
 
         self._log_result(output, request_id)
+        
+        self._metrics.increment_requests()
+        self._metrics.record_label(output.get('label', 'Unknown'))
+        self._metrics.record_review(output.get('requires_human_review', False))
 
         if self._classify_cache_max > 0 and not return_raw:
             stored = {
@@ -544,6 +555,9 @@ def classify_batch(
                 'items_per_second': self._batch_stats.items_per_second,
             } if self._batch_stats.total > 0 else None,
         }
+
+    def get_prometheus_metrics(self) -> str:
+        return self._metrics.get_metrics()
 
     def reset_cache(self) -> Dict:
         cleared_items = len(self._classify_cache)
