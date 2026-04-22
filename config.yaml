@@ -39,6 +39,18 @@ pipeline:
   batch_max_workers: 4
   # Chunk size for chunked batch processing.
   batch_chunk_size: 8
+  # Cache TTL in seconds.
+  cache_ttl_seconds: 300
+
+fusion:
+  rule_weight: 0.3
+  ml_weight: 0.7
+  amplification_factor: 1.5
+
+classification_labels:
+  non_radical_threshold: 20
+  mildly_radical_threshold: 40
+  moderately_radical_threshold: 70
 
 logging:
   level: INFO

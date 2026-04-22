@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 
 from .preprocessor import TextPreprocessor
 from .rule_engine import RuleEngine
+from .classifier import RadicalClassifier
 from .fusion import ScoreFusion
 from .exceptions import ModelLoadError, PredictionError, ValidationError, PreprocessingError, CacheError, RuleEngineError
 from .metrics import MetricsCollector
@@ -36,6 +37,24 @@ class SentinelPipeline:
         self.preprocessor = TextPreprocessor()
         self.rule_engine = RuleEngine(
             rules_path=self.config['rule_engine']['data_path']
+        )
+        
+        model_cfg = self.config.get('model', {})
+        pipe_cfg = self.config.get('pipeline', {})
+        lazy_load = pipe_cfg.get('lazy_load_model', False)
+        
+        self.classifier = RadicalClassifier(
+            model_name=model_cfg.get('name', 'distilbert-base-uncased'),
+            num_labels=model_cfg.get('num_labels', 4),
+            checkpoint_path=model_cfg.get('checkpoint_path'),
+            lazy_load=lazy_load
+        )
+        
+        rule_cfg = self.config.get('rule_engine', {})
+        self.fusion = ScoreFusion(
+            rule_weight=rule_cfg.get('weights', {}).get('high_risk', 0.3),
+            ml_weight=1.0 - rule_cfg.get('weights', {}).get('high_risk', 0.3),
+            amplification_factor=rule_cfg.get('amplification_factor', 1.5)
         )
         pipe_cfg = self.config.get('pipeline', {})
         self._classify_cache_max = max(0, int(pipe_cfg.get('classify_cache_size', 0)))
@@ -266,8 +285,6 @@ class SentinelPipeline:
         
         self._cache_misses += 1
         
-        self._cache_misses += 1
-
         t0 = time.perf_counter()
         preprocessed = self.preprocessor.preprocess(text)
         rule_result = self.rule_engine.analyze(preprocessed['cleaned'])
