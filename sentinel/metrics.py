@@ -81,6 +81,18 @@ class MetricsCollector:
             
             return "\n".join(lines)
 
+    def get_total_requests(self) -> int:
+        with self._lock:
+            return self._total_requests
+
+    def get_label_counts(self) -> Dict[str, int]:
+        with self._lock:
+            return dict(self._label_counts)
+
+    def get_review_count(self) -> int:
+        with self._lock:
+            return self._review_counts.get("review_required", 0)
+
     def reset(self) -> None:
         with self._lock:
             self._total_requests = 0

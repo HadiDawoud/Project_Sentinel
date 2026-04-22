@@ -130,6 +130,25 @@ class SentinelPipeline:
         
         health["cache"] = self.get_cache_stats()
         
+        fusion_status = "healthy"
+        fusion_latency_ms = None
+        try:
+            t0 = time.perf_counter()
+            test_rule = {"risk_score": 25, "matched_terms": [], "flagged": False, "has_high_risk_terms": False}
+            test_ml = {"label": "Non-Radical", "confidence": 0.6, "probabilities": {"Non-Radical": 0.6, "Mildly Radical": 0.2, "Moderately Radical": 0.15, "Highly Radical": 0.05}}
+            _ = self.fusion.fuse(test_rule, test_ml)
+            fusion_latency_ms = round((time.perf_counter() - t0) * 1000, 2)
+        except Exception as e:
+            fusion_status = "unhealthy"
+            health["issues"].append({"component": "fusion", "error": str(e)})
+        health["components"]["fusion"] = {"status": fusion_status, "latency_ms": fusion_latency_ms}
+        
+        health["metrics"] = {
+            "total_requests": self._metrics.get_total_requests(),
+            "labels": self._metrics.get_label_counts(),
+            "reviews_flagged": self._metrics.get_review_count()
+        }
+        
         if any(s.get("status") in ("unhealthy", "not_loaded") for s in health["components"].values()):
             health["status"] = "degraded"
         if health["issues"]:
