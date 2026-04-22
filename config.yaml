@@ -47,6 +47,15 @@ fusion:
   ml_weight: 0.7
   amplification_factor: 1.5
 
+fairness:
+  enable_check: true
+  disparate_impact_threshold: 0.8
+  enable_report: true
+  categories:
+    - religion
+    - political
+    - identity
+
 classification_labels:
   non_radical_threshold: 20
   mildly_radical_threshold: 40

@@ -50,11 +50,12 @@ class SentinelPipeline:
             lazy_load=lazy_load
         )
         
+        fusion_cfg = self.config.get('fusion', {})
         rule_cfg = self.config.get('rule_engine', {})
         self.fusion = ScoreFusion(
-            rule_weight=rule_cfg.get('weights', {}).get('high_risk', 0.3),
-            ml_weight=1.0 - rule_cfg.get('weights', {}).get('high_risk', 0.3),
-            amplification_factor=rule_cfg.get('amplification_factor', 1.5)
+            rule_weight=fusion_cfg.get('rule_weight', 0.3),
+            ml_weight=fusion_cfg.get('ml_weight', 0.7),
+            amplification_factor=fusion_cfg.get('amplification_factor', 1.5)
         )
         pipe_cfg = self.config.get('pipeline', {})
         self._classify_cache_max = max(0, int(pipe_cfg.get('classify_cache_size', 0)))
