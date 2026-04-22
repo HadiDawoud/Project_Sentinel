@@ -10,6 +10,11 @@ class ScoreFusion:
         ml_weight: float = 0.7,
         amplification_factor: float = 1.5
     ):
+        total_weight = rule_weight + ml_weight
+        if total_weight != 1.0 and total_weight > 0:
+            rule_weight = rule_weight / total_weight
+            ml_weight = ml_weight / total_weight
+        
         self.rule_weight = rule_weight
         self.ml_weight = ml_weight
         self.amplification_factor = amplification_factor
@@ -35,11 +40,6 @@ class ScoreFusion:
             self.rule_weight * rule_score +
             self.ml_weight * ml_risk_score
         )
-        
-        # Normalize weights if sum > 1
-        total_weight = self.rule_weight + self.ml_weight
-        if total_weight > 1.0:
-            fused_score /= total_weight
         
         final_risk_score = min(int(fused_score * 100), 100)
         final_label = self._determine_label(final_risk_score)
@@ -94,11 +94,6 @@ class ScoreFusion:
             self.ml_weight * ml_confidence +
             self.rule_weight * rule_certainty
         )
-        
-        # Normalize weight if sum > 1
-        total_weight = self.rule_weight + self.ml_weight
-        if total_weight > 1.0:
-            base_confidence /= total_weight
         
         if rule_result.get('has_high_risk_terms'):
             base_confidence = min(base_confidence * 1.2, 1.0)
